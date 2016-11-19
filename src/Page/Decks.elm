@@ -115,4 +115,7 @@ viewDeck deck =
             ]
             [ text (Deck.getName deck)
             ]
+        , button
+            [ onClick <| DeleteDeckRequest (Deck.getId deck) ]
+            [ text "X" ]
         ]
