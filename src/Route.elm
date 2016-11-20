@@ -8,7 +8,6 @@ module Route
         )
 
 import Navigation
-import String
 import UrlParser
     exposing
         ( Parser
@@ -18,6 +17,7 @@ import UrlParser
         , int
         , string
         )
+import Deck
 
 
 type Route
@@ -28,7 +28,7 @@ type Route
 
 type AuthorizedRoute
     = Decks
-    | EditDeck String
+    | EditDeck Deck.Id
 
 
 goTo : Route -> Cmd msg
