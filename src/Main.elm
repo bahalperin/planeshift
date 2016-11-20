@@ -2,6 +2,7 @@ module Main exposing (..)
 
 import Html exposing (Html)
 import Navigation
+import List.Extra
 import Login
 import Signup
 import User exposing (User)
@@ -225,15 +226,7 @@ update message model =
             ( { model
                 | decks =
                     model.decks
-                        |> Maybe.map
-                            (List.map
-                                (\d ->
-                                    if Deck.getId d == deckId then
-                                        Deck.addCardToMainDeck card d
-                                    else
-                                        d
-                                )
-                            )
+                        |> Maybe.map (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.addCardToMainDeck card))
               }
             , Cmd.none
             )
@@ -243,14 +236,7 @@ update message model =
                 | decks =
                     model.decks
                         |> Maybe.map
-                            (List.map
-                                (\d ->
-                                    if Deck.getId d == deckId then
-                                        Deck.removeCardFromMainDeck card d
-                                    else
-                                        d
-                                )
-                            )
+                            (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.removeCardFromMainDeck card))
               }
             , Cmd.none
             )
@@ -260,14 +246,7 @@ update message model =
                 | decks =
                     model.decks
                         |> Maybe.map
-                            (List.map
-                                (\d ->
-                                    if Deck.getId d == deckId then
-                                        Deck.addCardToSideboard card d
-                                    else
-                                        d
-                                )
-                            )
+                            (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.addCardToSideboard card))
               }
             , Cmd.none
             )
@@ -277,14 +256,7 @@ update message model =
                 | decks =
                     model.decks
                         |> Maybe.map
-                            (List.map
-                                (\d ->
-                                    if Deck.getId d == deckId then
-                                        Deck.removeCardFromSideboard card d
-                                    else
-                                        d
-                                )
-                            )
+                            (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.removeCardFromSideboard card))
               }
             , Cmd.none
             )

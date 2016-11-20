@@ -1,0 +1,8 @@
+# elm-package generated files
+elm-stuff
+
+node_modules
+
+public/build
+
+server/config.js
