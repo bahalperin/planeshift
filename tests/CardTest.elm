@@ -25,7 +25,7 @@ groupByName =
                         |> List.length
                     )
                     (cards
-                        |> List.map Card.name
+                        |> List.map Card.getName
                         |> List.Extra.unique
                         |> List.length
                     )

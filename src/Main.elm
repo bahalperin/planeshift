@@ -144,7 +144,7 @@ update message model =
                         ( { model
                             | editDeckPage =
                                 editDeckPage
-                                    |> Page.EditDeck.setSelectedCard (Card.id card)
+                                    |> Page.EditDeck.setSelectedCard (Card.getId card)
                                     |> Just
                           }
                         , Cmd.none

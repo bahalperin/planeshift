@@ -2,8 +2,8 @@ module Card
     exposing
         ( Card
         , new
-        , id
-        , name
+        , getId
+        , getName
         , frontImageUrl
         , backImageUrl
         , groupByName
@@ -39,13 +39,13 @@ new multiverseId name =
         }
 
 
-id : Card -> Int
-id (Card cardData) =
+getId : Card -> Int
+getId (Card cardData) =
     cardData.multiverseId
 
 
-name : Card -> String
-name (Card cardData) =
+getName : Card -> String
+getName (Card cardData) =
     cardData.name
 
 
@@ -72,14 +72,14 @@ groupByName cards =
 groupByNameHelp : List Card -> Dict String Card -> Dict String Int -> List ( Card, Int )
 groupByNameHelp newCards cardsByName cardCounts =
     case newCards of
-        first :: rest ->
+        (Card first) :: rest ->
             let
                 count =
                     cardCounts
-                        |> Dict.get (name first)
+                        |> Dict.get (first.name)
                         |> Maybe.withDefault 0
             in
-                groupByNameHelp rest (Dict.insert (name first) first cardsByName) (Dict.insert (name first) (count + 1) cardCounts)
+                groupByNameHelp rest (Dict.insert first.name (Card first) cardsByName) (Dict.insert first.name (count + 1) cardCounts)
 
         [] ->
             cardCounts

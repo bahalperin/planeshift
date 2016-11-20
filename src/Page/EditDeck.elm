@@ -113,7 +113,7 @@ viewDeckList decks editDeckPageData =
                         (deck
                             |> Deck.getMainDeck
                             |> Card.groupByName
-                            |> List.sortBy (\( card, count ) -> Card.name card |> String.toLower)
+                            |> List.sortBy (\( card, count ) -> Card.getName card |> String.toLower)
                             |> List.map (\( card, count ) -> mainDeckCard count card deck)
                         )
                     , Html.h3
@@ -128,7 +128,7 @@ viewDeckList decks editDeckPageData =
                         (deck
                             |> Deck.getSideboard
                             |> Card.groupByName
-                            |> List.sortBy (\( card, count ) -> Card.name card |> String.toLower)
+                            |> List.sortBy (\( card, count ) -> Card.getName card |> String.toLower)
                             |> List.map (\( card, count ) -> sideboardCard count card deck)
                         )
                     ]
@@ -157,7 +157,7 @@ deckListCard count card addCard removeCard selectCard =
         []
         [ Html.span
             [ Html.Events.onClick selectCard ]
-            [ Html.text <| (count |> toString) ++ " - " ++ Card.name card ]
+            [ Html.text <| (count |> toString) ++ " - " ++ Card.getName card ]
         , Html.button
             [ Html.Events.onClick addCard ]
             [ Html.text "+" ]
@@ -213,7 +213,7 @@ viewCardSearchResults cards editDeckPageData =
                     []
                     [ Html.span
                         [ Html.Events.onClick (SelectMtgCard card) ]
-                        [ Html.text (Card.name card) ]
+                        [ Html.text (Card.getName card) ]
                     , Html.button [ Html.Events.onClick (AddCardToMainDeck editDeckPageData.deckId card) ] [ Html.text "Add Card" ]
                     , Html.button [ Html.Events.onClick (AddCardToSideboard editDeckPageData.deckId card) ] [ Html.text "Add to Sideboard" ]
                     ]
@@ -234,7 +234,7 @@ viewSelectedCard decks editDeckPageData =
             editDeckPageData.cardSearchResults
                 |> Maybe.withDefault []
                 |> List.append deckCards
-                |> List.filter (\c -> Card.id c == (editDeckPageData.selectedCardId |> Maybe.withDefault 0))
+                |> List.filter (\c -> Card.getId c == (editDeckPageData.selectedCardId |> Maybe.withDefault 0))
                 |> List.head
                 |> Maybe.map Card.frontImageUrl
                 |> Maybe.withDefault Card.backImageUrl

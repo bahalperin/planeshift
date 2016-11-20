@@ -90,7 +90,7 @@ removeCardFromList : Card -> List Card -> List Card
 removeCardFromList card cardList =
     let
         ( matchingCards, remainingCards ) =
-            List.partition (\c -> Card.id c == Card.id card) cardList
+            List.partition (\c -> Card.getId c == Card.getId card) cardList
     in
         matchingCards
             |> List.tail
