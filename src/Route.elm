@@ -18,6 +18,7 @@ import UrlParser
         , string
         )
 import Deck
+import Game
 
 
 type Route
@@ -29,6 +30,8 @@ type Route
 type AuthorizedRoute
     = Decks
     | EditDeck Deck.Id
+    | Games
+    | PlayGame Game.Id
 
 
 goTo : Route -> Cmd msg
@@ -49,6 +52,12 @@ toUrl route =
 
                 EditDeck deckId ->
                     "/edit-deck/" ++ deckId
+
+                Games ->
+                    "/games"
+
+                PlayGame gameId ->
+                    "/game/" ++ gameId
 
         NotFound str ->
             str
@@ -74,10 +83,22 @@ editDeck =
     s "edit-deck" </> string
 
 
+games : Parser a a
+games =
+    s "games"
+
+
+playGame : Parser (String -> a) a
+playGame =
+    s "game" </> string
+
+
 routeParser : Parser (Route -> a) a
 routeParser =
     oneOf
-        [ UrlParser.map (Authorized << EditDeck) editDeck
+        [ UrlParser.map (Authorized << PlayGame) playGame
+        , UrlParser.map (Authorized Games) games
+        , UrlParser.map (Authorized << EditDeck) editDeck
         , UrlParser.map (Authorized Decks) viewDecks
         , UrlParser.map Home UrlParser.top
         ]

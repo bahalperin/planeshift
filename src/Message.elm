@@ -5,6 +5,7 @@ import Route exposing (Route)
 import User exposing (User)
 import Card exposing (Card)
 import Deck exposing (Deck)
+import Game exposing (Game)
 
 
 type Message
@@ -47,5 +48,10 @@ type Message
       --
     | DeleteDeckRequest Deck.Id
     | DeleteDeckResponse (Result Http.Error ())
+      --
+    | JoinGame String Game.Id
+    | HandleGameJoined String Game.Id
+    | FetchGamesRequest
+    | FetchGamesResponse (Result Http.Error (List Game))
       --
     | NoOp

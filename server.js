@@ -1,6 +1,5 @@
 var express = require('express');
 var path = require('path');
-var httpProxy = require('http-proxy');
 var serveStatic = require('serve-static');
 var bodyParser = require('body-parser');
 
@@ -14,8 +13,9 @@ var expressSession = require('express-session');
 var routes = require('./server/routes');
 
 module.exports = function(port) {
-    var proxy = httpProxy.createProxyServer();
     var app = express();
+    var server = require('http').Server(app);
+    var io = require('socket.io')(server);
 
     var publicPath = path.resolve(__dirname, 'public');
 
@@ -45,9 +45,18 @@ module.exports = function(port) {
 
         routes(app, db);
 
+        const games = io
+            .of('/games')
+            .on('connection', (socket) => {
+                socket.on('joined', (data) => {
+                    socket.broadcast.emit('joined', data);
+                });
+            });
+
         app.listen(port, function() {
             console.log('Server running on port ' + port);
         });
+        server.listen(4000);
 
     });
 

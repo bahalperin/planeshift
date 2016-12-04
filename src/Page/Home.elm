@@ -106,6 +106,12 @@ loggedInHomePage homePageData =
                     [ Html.Events.onClick (ChangeRoute <| Authorized Route.Decks) ]
                     [ Html.text "Decks" ]
                 ]
+            , Html.li
+                []
+                [ Html.a
+                    [ Html.Events.onClick (ChangeRoute <| Authorized Route.Games) ]
+                    [ Html.text "Games" ]
+                ]
             ]
         ]
 

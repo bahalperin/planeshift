@@ -10,9 +10,12 @@ import Route exposing (Route(..))
 import Message exposing (Message(..))
 import Card
 import Deck exposing (Deck)
+import Game exposing (Game)
 import Page.Home exposing (HomePage)
 import Page.Decks exposing (DecksPage)
+import Page.Games
 import Page.EditDeck exposing (EditDeckPage)
+import Ports
 
 
 main : Program Never Model Message
@@ -21,7 +24,7 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = (\_ -> Sub.none)
+        , subscriptions = subscriptions
         }
 
 
@@ -33,6 +36,7 @@ type alias Model =
     { user : User
     , route : Route
     , decks : Maybe (List Deck)
+    , games : Maybe (List Game)
     , homePage : HomePage
     , decksPage : DecksPage
     , editDeckPage : Maybe EditDeckPage
@@ -56,6 +60,7 @@ init location =
         ( { user = User.anonymous
           , route = route
           , decks = Nothing
+          , games = Nothing
           , homePage = Page.Home.init
           , decksPage = Page.Decks.init
           , editDeckPage = editDeckPage
@@ -100,6 +105,7 @@ update message model =
                         ( { model | user = user }
                         , Cmd.batch
                             [ Deck.fetchDecks FetchDecksResponse
+                            , Game.fetchGames FetchGamesResponse
                             ]
                         )
                     )
@@ -217,6 +223,7 @@ update message model =
                         ( { model | user = User.fromUsername username }
                         , Cmd.batch
                             [ Deck.fetchDecks FetchDecksResponse
+                            , Game.fetchGames FetchGamesResponse
                             ]
                         )
                     )
@@ -291,6 +298,44 @@ update message model =
         DeleteDeckResponse result ->
             ( model, Cmd.none )
 
+        JoinGame playerName gameId ->
+            ( { model
+                | games =
+                    model.games
+                        |> Maybe.map
+                            (\games ->
+                                List.Extra.updateIf (\game -> Game.getId game == gameId) (Game.addPlayer playerName) games
+                            )
+              }
+            , Cmd.batch
+                [ Navigation.newUrl (Route.toUrl (Authorized <| Route.PlayGame gameId))
+                , Ports.broadcastGameJoined { username = playerName, gameId = gameId }
+                ]
+            )
+
+        HandleGameJoined playerName gameId ->
+            ( { model
+                | games =
+                    model.games
+                        |> Maybe.map
+                            (\games ->
+                                List.Extra.updateIf (\game -> Game.getId game == gameId) (Game.addPlayer playerName) games
+                            )
+              }
+            , Cmd.none
+            )
+
+        FetchGamesRequest ->
+            ( model, Game.fetchGames FetchGamesResponse )
+
+        FetchGamesResponse result ->
+            result
+                |> Result.map
+                    (\games ->
+                        ( { model | games = Just games }, Cmd.none )
+                    )
+                |> Result.withDefault ( model, Cmd.none )
+
         NoOp ->
             ( model, Cmd.none )
 
@@ -327,6 +372,15 @@ view model =
                             |> Maybe.withDefault
                                 (Html.text "No deck is currently being edited")
 
+                Route.Games ->
+                    model.games
+                        |> Maybe.withDefault []
+                        |> Page.Games.view model.user
+                        |> layout model
+
+                Route.PlayGame gameId ->
+                    Html.text gameId
+
         NotFound url ->
             Html.div
                 []
@@ -354,3 +408,14 @@ layout model content =
                 ]
             , content
             ]
+
+
+
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Sub Message
+subscriptions model =
+    Sub.batch
+        [ Ports.handleGameJoined (\{ username, gameId } -> HandleGameJoined username gameId)
+        ]
