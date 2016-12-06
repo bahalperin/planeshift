@@ -83,12 +83,14 @@ setSignupPassword password (HomePage homePageData) =
 -- VIEW
 
 
-view : User -> HomePage -> Html Message
-view user (HomePage homePageData) =
-    if User.isRegistered user then
-        loggedInHomePage homePageData
-    else
-        defaultHomePage homePageData
+view : Maybe User -> HomePage -> Html Message
+view maybeUser (HomePage homePageData) =
+    case maybeUser of
+        Just user ->
+            loggedInHomePage homePageData
+
+        Nothing ->
+            defaultHomePage homePageData
 
 
 loggedInHomePage : HomePageData -> Html Message

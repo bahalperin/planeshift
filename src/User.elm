@@ -2,9 +2,7 @@ module User
     exposing
         ( User
         , getUsername
-        , isRegistered
         , fromUsername
-        , anonymous
         , fetchCurrentUser
         )
 
@@ -17,8 +15,7 @@ import Json.Decode exposing (Decoder, field)
 
 
 type User
-    = Registered UserData
-    | Anonymous
+    = User UserData
 
 
 type alias UserData =
@@ -28,34 +25,14 @@ type alias UserData =
 
 fromUsername : String -> User
 fromUsername username =
-    Registered
+    User
         { username = username
         }
 
 
-anonymous : User
-anonymous =
-    Anonymous
-
-
-getUsername : User -> Maybe String
-getUsername user =
-    case user of
-        Registered userData ->
-            Just userData.username
-
-        _ ->
-            Nothing
-
-
-isRegistered : User -> Bool
-isRegistered user =
-    case user of
-        Registered _ ->
-            True
-
-        _ ->
-            False
+getUsername : User -> String
+getUsername (User userData) =
+    userData.username
 
 
 
@@ -67,16 +44,7 @@ decoder =
     Json.Decode.map
         UserData
         (field "username" Json.Decode.string)
-        |> Json.Decode.maybe
-        |> Json.Decode.map
-            (\result ->
-                case result of
-                    Just userData ->
-                        Registered userData
-
-                    Nothing ->
-                        Anonymous
-            )
+        |> Json.Decode.map User
 
 
 fetchCurrentUser : (Result Http.Error User -> msg) -> Cmd msg

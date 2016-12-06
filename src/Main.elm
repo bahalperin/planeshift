@@ -33,7 +33,7 @@ main =
 
 
 type alias Model =
-    { user : User
+    { user : Maybe User
     , route : Route
     , decks : Maybe (List Deck)
     , games : Maybe (List Game)
@@ -57,7 +57,7 @@ init location =
                 _ ->
                     Nothing
     in
-        ( { user = User.anonymous
+        ( { user = Nothing
           , route = route
           , decks = Nothing
           , games = Nothing
@@ -80,20 +80,22 @@ update message model =
             ( model, Route.goTo route )
 
         HandleRouteChange route ->
-            if User.isRegistered model.user then
-                case route of
-                    Authorized (Route.EditDeck deckId) ->
-                        ( { model | route = route, editDeckPage = Just <| Page.EditDeck.init deckId }, Cmd.none )
+            case model.user of
+                Just user ->
+                    case route of
+                        Authorized (Route.EditDeck deckId) ->
+                            ( { model | route = route, editDeckPage = Just <| Page.EditDeck.init deckId }, Cmd.none )
 
-                    _ ->
-                        ( { model | route = route }, Cmd.none )
-            else
-                case route of
-                    Authorized _ ->
-                        ( model, Route.goTo Home )
+                        _ ->
+                            ( { model | route = route }, Cmd.none )
 
-                    _ ->
-                        ( { model | route = route }, Cmd.none )
+                Nothing ->
+                    case route of
+                        Authorized _ ->
+                            ( model, Route.goTo Home )
+
+                        _ ->
+                            ( { model | route = route }, Cmd.none )
 
         FetchUserRequest ->
             ( model, User.fetchCurrentUser FetchUserResponse )
@@ -102,7 +104,7 @@ update message model =
             result
                 |> Result.map
                     (\user ->
-                        ( { model | user = user }
+                        ( { model | user = Just user }
                         , Cmd.batch
                             [ Deck.fetchDecks FetchDecksResponse
                             , Game.fetchGames FetchGamesResponse
@@ -197,7 +199,7 @@ update message model =
             result
                 |> Result.map
                     (\username ->
-                        ( { model | user = User.fromUsername username }, Cmd.none )
+                        ( { model | user = Just <| User.fromUsername username }, Cmd.none )
                     )
                 |> Result.withDefault ( model, Cmd.none )
 
@@ -220,7 +222,7 @@ update message model =
             result
                 |> Result.map
                     (\username ->
-                        ( { model | user = User.fromUsername username }
+                        ( { model | user = Just <| User.fromUsername username }
                         , Cmd.batch
                             [ Deck.fetchDecks FetchDecksResponse
                             , Game.fetchGames FetchGamesResponse
@@ -392,7 +394,8 @@ layout : Model -> Html Message -> Html Message
 layout model content =
     let
         username =
-            User.getUsername model.user
+            model.user
+                |> Maybe.map User.getUsername
                 |> Maybe.withDefault "log in"
     in
         Html.div

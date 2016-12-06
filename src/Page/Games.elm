@@ -19,12 +19,12 @@ import Html.Attributes
 import Html.Events
 
 
-view : User -> List Game -> Html Message
-view user games =
+view : Maybe User -> List Game -> Html Message
+view maybeUser games =
     let
         username =
-            user
-                |> User.getUsername
+            maybeUser
+                |> Maybe.map User.getUsername
                 |> Maybe.withDefault ""
     in
         table
