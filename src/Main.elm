@@ -3,6 +3,7 @@ module Main exposing (..)
 import Html exposing (Html)
 import Navigation
 import List.Extra
+import Return exposing (Return)
 import Login
 import Signup
 import User exposing (User)
@@ -43,7 +44,7 @@ type alias Model =
     }
 
 
-init : Navigation.Location -> ( Model, Cmd Message )
+init : Navigation.Location -> Return Message Model
 init location =
     let
         route =
@@ -57,218 +58,226 @@ init location =
                 _ ->
                     Nothing
     in
-        ( { user = Nothing
-          , route = route
-          , decks = Nothing
-          , games = Nothing
-          , homePage = Page.Home.init
-          , decksPage = Page.Decks.init
-          , editDeckPage = editDeckPage
-          }
-        , User.fetchCurrentUser FetchUserResponse
-        )
+        { user = Nothing
+        , route = route
+        , decks = Nothing
+        , games = Nothing
+        , homePage = Page.Home.init
+        , decksPage = Page.Decks.init
+        , editDeckPage = editDeckPage
+        }
+            |> Return.singleton
+            |> Return.command (User.fetchCurrentUser FetchUserResponse)
 
 
 
 -- UPDATE
 
 
-update : Message -> Model -> ( Model, Cmd Message )
+update : Message -> Model -> Return Message Model
 update message model =
     case message of
         ChangeRoute route ->
-            ( model, Route.goTo route )
+            Return.return model (Route.goTo route)
 
         HandleRouteChange route ->
-            case model.user of
-                Just user ->
-                    case route of
-                        Authorized (Route.EditDeck deckId) ->
-                            ( { model | route = route, editDeckPage = Just <| Page.EditDeck.init deckId }, Cmd.none )
+            Return.singleton { model | route = route }
+                |> Return.map
+                    (\model ->
+                        case ( model.user, route ) of
+                            ( Just user, Authorized (Route.EditDeck deckId) ) ->
+                                { model | editDeckPage = Just <| Page.EditDeck.init deckId }
 
-                        _ ->
-                            ( { model | route = route }, Cmd.none )
+                            _ ->
+                                model
+                    )
+                |> Return.effect_
+                    (\model ->
+                        case ( model.user, route ) of
+                            ( Nothing, Authorized _ ) ->
+                                Route.goTo Home
 
-                Nothing ->
-                    case route of
-                        Authorized _ ->
-                            ( model, Route.goTo Home )
-
-                        _ ->
-                            ( { model | route = route }, Cmd.none )
+                            _ ->
+                                Cmd.none
+                    )
 
         FetchUserRequest ->
-            ( model, User.fetchCurrentUser FetchUserResponse )
+            model
+                |> Return.singleton
+                |> Return.command (User.fetchCurrentUser FetchUserResponse)
 
         FetchUserResponse result ->
             result
                 |> Result.map
                     (\user ->
-                        ( { model | user = Just user }
-                        , Cmd.batch
-                            [ Deck.fetchDecks FetchDecksResponse
-                            , Game.fetchGames FetchGamesResponse
-                            ]
-                        )
+                        Return.singleton { model | user = Just user }
+                            |> Return.command (Deck.fetchDecks FetchDecksResponse)
+                            |> Return.command (Game.fetchGames FetchGamesResponse)
                     )
-                |> Result.withDefault ( model, Route.goTo Home )
+                |> Result.withDefault (Return.return model (Route.goTo Home))
 
         SetCardSearchQuery query ->
-            model.editDeckPage
-                |> Maybe.map
-                    (\editDeckPage ->
-                        ( { model | editDeckPage = Just <| Page.EditDeck.setCardSearchQuery query editDeckPage }, Cmd.none )
+            Return.singleton model
+                |> Return.map
+                    (\model ->
+                        model.editDeckPage
+                            |> Maybe.map (\editDeckPage -> { model | editDeckPage = Just <| Page.EditDeck.setCardSearchQuery query editDeckPage })
+                            |> Maybe.withDefault model
                     )
-                |> Maybe.withDefault ( model, Cmd.none )
 
         SearchForCardsRequest ->
-            model.editDeckPage
-                |> Maybe.map
-                    (\editDeckPage ->
-                        ( model
-                        , editDeckPage
-                            |> Page.EditDeck.getCardSearchQuery
-                            |> Card.getCardsByName SearchForCardsResponse
-                        )
+            Return.singleton model
+                |> Return.effect_
+                    (\{ editDeckPage } ->
+                        editDeckPage
+                            |> Maybe.map (Page.EditDeck.getCardSearchQuery >> Card.getCardsByName SearchForCardsResponse)
+                            |> Maybe.withDefault Cmd.none
                     )
-                |> Maybe.withDefault ( model, Cmd.none )
 
         SearchForCardsResponse result ->
-            case result of
-                Ok cards ->
-                    model.editDeckPage
-                        |> Maybe.map
-                            (\editDeckPage ->
-                                ( { model | editDeckPage = Just <| Page.EditDeck.setCardSearchResults cards editDeckPage }, Cmd.none )
-                            )
-                        |> Maybe.withDefault ( model, Cmd.none )
+            Return.singleton model
+                |> Return.map
+                    (\model ->
+                        case ( model.editDeckPage, result ) of
+                            ( Just editDeckPage, Ok cards ) ->
+                                { model | editDeckPage = Just <| Page.EditDeck.setCardSearchResults cards editDeckPage }
 
-                Err _ ->
-                    ( model, Cmd.none )
+                            _ ->
+                                model
+                    )
 
         SelectMtgCard card ->
-            model.editDeckPage
-                |> Maybe.map
-                    (\editDeckPage ->
-                        ( { model
-                            | editDeckPage =
-                                editDeckPage
-                                    |> Page.EditDeck.setSelectedCard (Card.getId card)
-                                    |> Just
-                          }
-                        , Cmd.none
-                        )
+            Return.singleton model
+                |> Return.map
+                    (\model ->
+                        model.editDeckPage
+                            |> Maybe.map
+                                (\editDeckPage ->
+                                    { model
+                                        | editDeckPage =
+                                            editDeckPage
+                                                |> Page.EditDeck.setSelectedCard (Card.getId card)
+                                                |> Just
+                                    }
+                                )
+                            |> Maybe.withDefault model
                     )
-                |> Maybe.withDefault ( model, Cmd.none )
 
         SetAddNewDeckName name ->
-            ( { model | decksPage = Page.Decks.setNewDeckName name model.decksPage }, Cmd.none )
+            Return.singleton { model | decksPage = Page.Decks.setNewDeckName name model.decksPage }
 
         AddDeckRequest ->
-            ( { model | decksPage = Page.Decks.setNewDeckName "" model.decksPage }
-            , model.decksPage
-                |> Page.Decks.getNewDeckName
-                |> Deck.addDeck AddDeckResponse
-            )
+            { model | decksPage = Page.Decks.setNewDeckName "" model.decksPage }
+                |> Return.singleton
+                |> Return.command
+                    (model.decksPage
+                        |> Page.Decks.getNewDeckName
+                        |> Deck.addDeck AddDeckResponse
+                    )
 
         AddDeckResponse result ->
-            case result of
-                Ok deck ->
-                    let
-                        allDecks =
-                            model.decks
-                                |> Maybe.withDefault []
-                    in
-                        ( { model | editDeckPage = Just <| Page.EditDeck.init (Deck.getId deck), decks = Just (deck :: allDecks) }, Route.goTo (Authorized <| Route.EditDeck (Deck.getId deck)) )
-
-                Err _ ->
-                    ( model, Cmd.none )
+            let
+                allDecks =
+                    model.decks
+                        |> Maybe.withDefault []
+            in
+                result
+                    |> Result.map
+                        (\deck ->
+                            { model | editDeckPage = Just <| Page.EditDeck.init (Deck.getId deck), decks = Just (deck :: allDecks) }
+                                |> Return.singleton
+                                |> Return.command (Route.goTo (Authorized <| Route.EditDeck (Deck.getId deck)))
+                        )
+                    |> Result.withDefault (Return.singleton model)
 
         FetchDecksResponse result ->
-            result
-                |> Result.map
-                    (\decks ->
-                        ( { model | decks = Just decks }, Cmd.none )
+            Return.singleton model
+                |> Return.map
+                    (\model ->
+                        result
+                            |> Result.map
+                                (\decks ->
+                                    { model | decks = Just decks }
+                                )
+                            |> Result.withDefault model
                     )
-                |> Result.withDefault ( model, Cmd.none )
 
         RegisterUserRequest ->
-            ( model, Signup.signup RegisterUserResponse (Page.Home.getSignupForm model.homePage) )
+            Return.singleton model
+                |> Return.command (Signup.signup RegisterUserResponse (Page.Home.getSignupForm model.homePage))
 
         RegisterUserResponse result ->
-            result
-                |> Result.map
-                    (\user ->
-                        ( { model | user = Just user }, Cmd.none )
+            Return.singleton model
+                |> Return.map
+                    (\model ->
+                        result
+                            |> Result.map
+                                (\user ->
+                                    { model | user = Just user }
+                                )
+                            |> Result.withDefault model
                     )
-                |> Result.withDefault ( model, Cmd.none )
 
         SetSignupUsername username ->
-            ( { model | homePage = Page.Home.setSignupUsername username model.homePage }, Cmd.none )
+            Return.singleton { model | homePage = Page.Home.setSignupUsername username model.homePage }
 
         SetSignupPassword password ->
-            ( { model | homePage = Page.Home.setSignupPassword password model.homePage }, Cmd.none )
+            Return.singleton { model | homePage = Page.Home.setSignupPassword password model.homePage }
 
         SetLoginUsername username ->
-            ( { model | homePage = Page.Home.setLoginUsername username model.homePage }, Cmd.none )
+            Return.singleton { model | homePage = Page.Home.setLoginUsername username model.homePage }
 
         SetLoginPassword password ->
-            ( { model | homePage = Page.Home.setLoginPassword password model.homePage }, Cmd.none )
+            Return.singleton { model | homePage = Page.Home.setLoginPassword password model.homePage }
 
         LoginRequest ->
-            ( model, Login.login LoginResponse (Page.Home.getLoginForm model.homePage) )
+            Return.singleton model
+                |> Return.command (Login.login LoginResponse (Page.Home.getLoginForm model.homePage))
 
         LoginResponse result ->
             result
                 |> Result.map
                     (\user ->
-                        ( { model | user = Just user }
-                        , Cmd.batch
-                            [ Deck.fetchDecks FetchDecksResponse
-                            , Game.fetchGames FetchGamesResponse
-                            ]
-                        )
+                        Return.singleton { model | user = Just user }
+                            |> Return.command (Deck.fetchDecks FetchDecksResponse)
+                            |> Return.command (Game.fetchGames FetchGamesResponse)
                     )
-                |> Result.withDefault ( model, Cmd.none )
+                |> Result.withDefault (Return.return model (Route.goTo Home))
 
         AddCardToMainDeck deckId card ->
-            ( { model
-                | decks =
-                    model.decks
-                        |> Maybe.map (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.addCardToMainDeck card))
-              }
-            , Cmd.none
-            )
+            Return.singleton
+                { model
+                    | decks =
+                        model.decks
+                            |> Maybe.map (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.addCardToMainDeck card))
+                }
 
         RemoveCardFromMainDeck deckId card ->
-            ( { model
-                | decks =
-                    model.decks
-                        |> Maybe.map
-                            (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.removeCardFromMainDeck card))
-              }
-            , Cmd.none
-            )
+            Return.singleton
+                { model
+                    | decks =
+                        model.decks
+                            |> Maybe.map
+                                (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.removeCardFromMainDeck card))
+                }
 
         AddCardToSideboard deckId card ->
-            ( { model
-                | decks =
-                    model.decks
-                        |> Maybe.map
-                            (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.addCardToSideboard card))
-              }
-            , Cmd.none
-            )
+            Return.singleton
+                { model
+                    | decks =
+                        model.decks
+                            |> Maybe.map
+                                (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.addCardToSideboard card))
+                }
 
         RemoveCardFromSideboard deckId card ->
-            ( { model
-                | decks =
-                    model.decks
-                        |> Maybe.map
-                            (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.removeCardFromSideboard card))
-              }
-            , Cmd.none
-            )
+            Return.singleton
+                { model
+                    | decks =
+                        model.decks
+                            |> Maybe.map
+                                (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.removeCardFromSideboard card))
+                }
 
         SaveDeckRequest deckId ->
             let
@@ -278,15 +287,16 @@ update message model =
                         |> List.filter (\d -> Deck.getId d == deckId)
                         |> List.head
             in
-                case maybeDeck of
-                    Just deck ->
-                        ( model, Deck.saveDeck SaveDeckResponse deck )
-
-                    Nothing ->
-                        ( model, Cmd.none )
+                model
+                    |> Return.singleton
+                    |> Return.command
+                        (maybeDeck
+                            |> Maybe.map (Deck.saveDeck SaveDeckResponse)
+                            |> Maybe.withDefault Cmd.none
+                        )
 
         SaveDeckResponse result ->
-            ( model, Cmd.none )
+            Return.singleton model
 
         DeleteDeckRequest deckId ->
             let
@@ -295,51 +305,50 @@ update message model =
                         |> Maybe.withDefault []
                         |> List.filter (\d -> Deck.getId d /= deckId)
             in
-                ( { model | decks = Just updatedDecks }, Deck.deleteDeck DeleteDeckResponse deckId )
+                Return.singleton { model | decks = Just updatedDecks }
+                    |> Return.command (Deck.deleteDeck DeleteDeckResponse deckId)
 
         DeleteDeckResponse result ->
-            ( model, Cmd.none )
+            Return.singleton model
 
         JoinGame playerName gameId ->
-            ( { model
+            { model
                 | games =
                     model.games
                         |> Maybe.map
                             (\games ->
                                 List.Extra.updateIf (\game -> Game.getId game == gameId) (Game.addPlayer playerName) games
                             )
-              }
-            , Cmd.batch
-                [ Navigation.newUrl (Route.toUrl (Authorized <| Route.PlayGame gameId))
-                , Ports.broadcastGameJoined { username = playerName, gameId = gameId }
-                ]
-            )
+            }
+                |> Return.singleton
+                |> Return.command (Navigation.newUrl (Route.toUrl (Authorized <| Route.PlayGame gameId)))
+                |> Return.command (Ports.broadcastGameJoined { username = playerName, gameId = gameId })
 
         HandleGameJoined playerName gameId ->
-            ( { model
+            { model
                 | games =
                     model.games
                         |> Maybe.map
                             (\games ->
                                 List.Extra.updateIf (\game -> Game.getId game == gameId) (Game.addPlayer playerName) games
                             )
-              }
-            , Cmd.none
-            )
+            }
+                |> Return.singleton
 
         FetchGamesRequest ->
-            ( model, Game.fetchGames FetchGamesResponse )
+            Return.return model (Game.fetchGames FetchGamesResponse)
 
         FetchGamesResponse result ->
-            result
-                |> Result.map
-                    (\games ->
-                        ( { model | games = Just games }, Cmd.none )
+            Return.singleton model
+                |> Return.map
+                    (\model ->
+                        result
+                            |> Result.map (\games -> { model | games = Just games })
+                            |> Result.withDefault model
                     )
-                |> Result.withDefault ( model, Cmd.none )
 
         NoOp ->
-            ( model, Cmd.none )
+            Return.singleton model
 
 
 

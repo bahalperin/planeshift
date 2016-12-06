@@ -9,7 +9,7 @@ module.exports = function(app, db) {
 
         const users = db.collection('users');
         users.findOne({
-            _id: objectID(deck._id)
+            _id: objectID(userId)
         }, function(err, user) {
             res.json(user);
         });
