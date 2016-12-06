@@ -1,8 +1,10 @@
 module User
     exposing
         ( User
+        , Id
         , getUsername
-        , fromUsername
+        , new
+        , decoder
         , fetchCurrentUser
         )
 
@@ -19,14 +21,20 @@ type User
 
 
 type alias UserData =
-    { username : String
+    { id : Id
+    , username : String
     }
 
 
-fromUsername : String -> User
-fromUsername username =
+type alias Id =
+    String
+
+
+new : Id -> String -> User
+new id username =
     User
-        { username = username
+        { id = id
+        , username = username
         }
 
 
@@ -41,8 +49,9 @@ getUsername (User userData) =
 
 decoder : Decoder User
 decoder =
-    Json.Decode.map
+    Json.Decode.map2
         UserData
+        (field "_id" Json.Decode.string)
         (field "username" Json.Decode.string)
         |> Json.Decode.map User
 

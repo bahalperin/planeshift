@@ -1,17 +1,18 @@
 var login = require('./login');
 var signup = require('./signup');
+var objectID = require('mongodb').ObjectID;
 
 module.exports = function(passport, db) {
 
     // Passport needs to be able to serialize and deserialize users to support persistent login sessions
     passport.serializeUser(function(user, done) {
-        done(null, user.username);
+        done(null, user._id);
     });
 
-    passport.deserializeUser(function(username, done) {
+    passport.deserializeUser(function(id, done) {
         const users = db.collection('users');
         users.findOne({
-            'username': username
+            _id: objectID(id)
         }, function(err, user) {
             done(err, user);
         });

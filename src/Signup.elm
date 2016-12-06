@@ -32,9 +32,9 @@ import Html.Attributes
         )
 import Html.Events exposing (onInput)
 import Json.Encode
-import Json.Decode
 import Http
 import Message exposing (Message(..))
+import User exposing (User)
 
 
 -- MODEL
@@ -128,7 +128,7 @@ encoder model =
 -- COMMANDS
 
 
-signup : (Result Http.Error String -> message) -> SignupForm -> Cmd message
+signup : (Result Http.Error User -> message) -> SignupForm -> Cmd message
 signup onResult model =
     let
         url =
@@ -139,7 +139,7 @@ signup onResult model =
                 (Http.jsonBody
                     (encoder model)
                 )
-                (Json.Decode.succeed "")
+                User.decoder
     in
         request
             |> Http.send onResult

@@ -198,8 +198,8 @@ update message model =
         RegisterUserResponse result ->
             result
                 |> Result.map
-                    (\username ->
-                        ( { model | user = Just <| User.fromUsername username }, Cmd.none )
+                    (\user ->
+                        ( { model | user = Just user }, Cmd.none )
                     )
                 |> Result.withDefault ( model, Cmd.none )
 
@@ -221,8 +221,8 @@ update message model =
         LoginResponse result ->
             result
                 |> Result.map
-                    (\username ->
-                        ( { model | user = Just <| User.fromUsername username }
+                    (\user ->
+                        ( { model | user = Just user }
                         , Cmd.batch
                             [ Deck.fetchDecks FetchDecksResponse
                             , Game.fetchGames FetchGamesResponse

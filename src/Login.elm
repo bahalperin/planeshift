@@ -12,9 +12,9 @@ import Html exposing (Html)
 import Html.Attributes
 import Html.Events
 import Json.Encode
-import Json.Decode
 import Http
 import Message exposing (Message(..))
+import User exposing (User)
 
 
 -- MODEL
@@ -103,7 +103,7 @@ encoder model =
 -- COMMANDS
 
 
-login : (Result Http.Error String -> message) -> LoginForm -> Cmd message
+login : (Result Http.Error User -> message) -> LoginForm -> Cmd message
 login onResult model =
     let
         url =
@@ -114,7 +114,7 @@ login onResult model =
                 (Http.jsonBody
                     (encoder model)
                 )
-                (Json.Decode.succeed "")
+                User.decoder
     in
         request
             |> Http.send onResult

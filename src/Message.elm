@@ -28,7 +28,7 @@ type Message
     | FetchDecksResponse (Result Http.Error (List Deck))
       --
     | RegisterUserRequest
-    | RegisterUserResponse (Result Http.Error String)
+    | RegisterUserResponse (Result Http.Error User)
       --
     | SetSignupUsername String
     | SetSignupPassword String
@@ -36,7 +36,7 @@ type Message
     | SetLoginPassword String
       --
     | LoginRequest
-    | LoginResponse (Result Http.Error String)
+    | LoginResponse (Result Http.Error User)
       --
     | AddCardToMainDeck Deck.Id Card
     | RemoveCardFromMainDeck Deck.Id Card

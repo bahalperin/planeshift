@@ -1,12 +1,17 @@
 var bcrypt = require('bcrypt');
 var passport = require('passport');
 var routeUtils = require('./utils');
+var objectID = require('mongodb').ObjectID;
 
 module.exports = function(app, db) {
     app.get('/api/current-user', routeUtils.ensureAuthenticated, function(req, res) {
-        const username = req.session.passport.user;
-        res.json({
-            username: username
+        const userId = req.session.passport.user;
+
+        const users = db.collection('users');
+        users.findOne({
+            _id: objectID(deck._id)
+        }, function(err, user) {
+            res.json(user);
         });
     });
     app.post('/api/signup', passport.authenticate('signup'), function(req, res) {
@@ -19,17 +24,21 @@ module.exports = function(app, db) {
                 username: username,
                 password: hash
             }, (err, results) => {
-
-                res.send({
+                users.findOne({
                     username: username
-                })
+                }, function(err, user) {
+                    res.json(user);
+                });
             });
         });
     });
 
     app.post('/api/login', passport.authenticate('login'), (req, res) => {
-        res.json({
+        const users = db.collection('users');
+        users.findOne({
             username: req.user.username
+        }, function(err, user) {
+            res.json(user);
         });
     });
 };
