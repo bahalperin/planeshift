@@ -8,12 +8,13 @@ module Page.Home
         , setLoginPassword
         , setSignupUsername
         , setSignupPassword
-        , view
+        , defaultView
+        , loggedInView
         )
 
 import Html exposing (Html)
 import Html.Events
-import Message exposing (Message(..))
+import Message exposing (Message(..), AnonymousMessage(..), LoggedInMessage(..))
 import Login exposing (LoginForm)
 import Signup exposing (SignupForm)
 import User exposing (User)
@@ -83,18 +84,8 @@ setSignupPassword password (HomePage homePageData) =
 -- VIEW
 
 
-view : Maybe User -> HomePage -> Html Message
-view maybeUser (HomePage homePageData) =
-    case maybeUser of
-        Just user ->
-            loggedInHomePage homePageData
-
-        Nothing ->
-            defaultHomePage homePageData
-
-
-loggedInHomePage : HomePageData -> Html Message
-loggedInHomePage homePageData =
+loggedInView : User -> Html Message
+loggedInView user =
     Html.div
         []
         [ Html.h3
@@ -105,21 +96,22 @@ loggedInHomePage homePageData =
             [ Html.li
                 []
                 [ Html.a
-                    [ Html.Events.onClick (ChangeRoute <| Authorized Route.Decks) ]
+                    [ Html.Events.onClick (ChangeRoute Route.Decks) ]
                     [ Html.text "Decks" ]
                 ]
             , Html.li
                 []
                 [ Html.a
-                    [ Html.Events.onClick (ChangeRoute <| Authorized Route.Games) ]
+                    [ Html.Events.onClick (ChangeRoute Route.Games) ]
                     [ Html.text "Games" ]
                 ]
             ]
         ]
+        |> Html.map LoggedIn
 
 
-defaultHomePage : HomePageData -> Html Message
-defaultHomePage homePageData =
+defaultView : HomePage -> Html Message
+defaultView (HomePage homePageData) =
     Html.div
         []
         [ homePageData.signupForm

@@ -16,7 +16,7 @@ import Html.Events
 import String
 import Card exposing (Card)
 import Deck exposing (Deck)
-import Message exposing (Message(..))
+import Message exposing (Message(..), AnonymousMessage(..), LoggedInMessage(..))
 
 
 -- MODEL
@@ -100,7 +100,7 @@ viewDeckList decks editDeckPageData =
                 Html.div
                     []
                     [ Html.h1 [] [ Html.text (Deck.getName deck) ]
-                    , Html.button [ Html.Events.onClick (SaveDeckRequest (Deck.getId deck)) ] [ Html.text "Save" ]
+                    , Html.button [ Html.Events.onClick (LoggedIn <| SaveDeckRequest (Deck.getId deck)) ] [ Html.text "Save" ]
                     , Html.h3
                         []
                         [ Html.text <|
@@ -144,11 +144,13 @@ viewDeckList decks editDeckPageData =
 mainDeckCard : Int -> Card -> Deck -> Html Message
 mainDeckCard count card deck =
     deckListCard count card (AddCardToMainDeck (Deck.getId deck) card) (RemoveCardFromMainDeck (Deck.getId deck) card) (SelectMtgCard card)
+        |> Html.map LoggedIn
 
 
 sideboardCard : Int -> Card -> Deck -> Html Message
 sideboardCard count card deck =
     deckListCard count card (AddCardToSideboard (Deck.getId deck) card) (RemoveCardFromSideboard (Deck.getId deck) card) (SelectMtgCard card)
+        |> Html.map LoggedIn
 
 
 deckListCard : Int -> Card -> message -> message -> message -> Html message
@@ -181,6 +183,7 @@ cardSearch editDeckPageData =
             ]
             [ Html.text "Search" ]
         ]
+        |> Html.map LoggedIn
 
 
 viewCardList : EditDeckPageData -> Html Message
@@ -220,6 +223,7 @@ viewCardSearchResults cards editDeckPageData =
             )
             cards
         )
+        |> Html.map LoggedIn
 
 
 viewSelectedCard : List Deck -> EditDeckPageData -> Html Message

@@ -32,11 +32,11 @@ import Html.Events
         , onClick
         )
 import Deck exposing (Deck)
-import Message exposing (Message(..))
+import Message exposing (Message(..), AnonymousMessage(..), LoggedInMessage(..))
 import Route
     exposing
         ( Route(..)
-        , AuthorizedRoute(..)
+        , PublicRoute(..)
         )
 
 
@@ -104,14 +104,15 @@ view decks (DecksPage decksPageData) =
                 |> List.map viewDeck
             )
         ]
+        |> Html.map LoggedIn
 
 
-viewDeck : Deck -> Html Message
+viewDeck : Deck -> Html LoggedInMessage
 viewDeck deck =
     li
         []
         [ a
-            [ onClick (ChangeRoute <| Authorized (EditDeck (Deck.getId deck)))
+            [ onClick (ChangeRoute <| (EditDeck (Deck.getId deck)))
             ]
             [ text (Deck.getName deck)
             ]

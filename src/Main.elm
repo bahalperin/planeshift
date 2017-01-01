@@ -7,8 +7,8 @@ import Return exposing (Return)
 import Login
 import Signup
 import User exposing (User)
-import Route exposing (Route(..))
-import Message exposing (Message(..))
+import Route exposing (Route(..), PublicRoute(..))
+import Message exposing (Message(..), AnonymousMessage(..), LoggedInMessage(..))
 import Card
 import Deck exposing (Deck)
 import Game exposing (Game)
@@ -33,12 +33,22 @@ main =
 -- MODEL
 
 
-type alias Model =
-    { user : Maybe User
+type Model
+    = Anonymous AnonymousModel
+    | LoggedIn LoggedInModel
+
+
+type alias AnonymousModel =
+    { route : PublicRoute
+    , homePage : HomePage
+    }
+
+
+type alias LoggedInModel =
+    { user : User
     , route : Route
     , decks : Maybe (List Deck)
     , games : Maybe (List Game)
-    , homePage : HomePage
     , decksPage : DecksPage
     , editDeckPage : Maybe EditDeckPage
     }
@@ -46,28 +56,23 @@ type alias Model =
 
 init : Navigation.Location -> Return Message Model
 init location =
-    let
-        route =
-            Route.fromLocation location
+    { route = Route.initialRoute location
+    , homePage = Page.Home.init
+    }
+        |> Anonymous
+        |> Return.singleton
+        |> Return.command (User.fetchCurrentUser (Message.Anonymous << FetchUserResponse))
 
-        editDeckPage =
-            case route of
-                Authorized (Route.EditDeck deckId) ->
-                    Just <| Page.EditDeck.init deckId
 
-                _ ->
-                    Nothing
-    in
-        { user = Nothing
-        , route = route
-        , decks = Nothing
-        , games = Nothing
-        , homePage = Page.Home.init
-        , decksPage = Page.Decks.init
-        , editDeckPage = editDeckPage
-        }
-            |> Return.singleton
-            |> Return.command (User.fetchCurrentUser FetchUserResponse)
+initLoggedInModel : User -> LoggedInModel
+initLoggedInModel user =
+    { user = user
+    , route = Public Home
+    , decks = Nothing
+    , games = Nothing
+    , decksPage = Page.Decks.init
+    , editDeckPage = Nothing
+    }
 
 
 
@@ -76,45 +81,131 @@ init location =
 
 update : Message -> Model -> Return Message Model
 update message model =
+    case ( model, message ) of
+        ( LoggedIn loggedInModel, Message.LoggedIn loggedInMessage ) ->
+            updateLoggedIn loggedInMessage loggedInModel
+
+        ( Anonymous anonymousModel, Message.Anonymous anonymousMessage ) ->
+            updateAnonymous anonymousMessage anonymousModel
+
+        ( LoggedIn loggedInModel, HandleRouteChange route ) ->
+            { loggedInModel
+                | route = route
+                , editDeckPage =
+                    case route of
+                        Route.EditDeck deckId ->
+                            Just <| Page.EditDeck.init deckId
+
+                        _ ->
+                            loggedInModel.editDeckPage
+            }
+                |> LoggedIn
+                |> Return.singleton
+
+        ( Anonymous anonymousModel, HandleRouteChange route ) ->
+            case route of
+                Public publicRoute ->
+                    Return.singleton (Anonymous { anonymousModel | route = publicRoute })
+
+                _ ->
+                    Return.return model (Route.goTo (Public Home))
+
+        ( _, NoOp ) ->
+            Return.singleton model
+
+        -- TODO: These situations should never happen.  Find a
+        -- way to get rid of these.
+        ( LoggedIn _, Message.Anonymous _ ) ->
+            Return.singleton model
+
+        ( Anonymous _, Message.LoggedIn _ ) ->
+            Return.singleton model
+
+
+updateAnonymous : AnonymousMessage -> AnonymousModel -> Return Message Model
+updateAnonymous message model =
     case message of
-        ChangeRoute route ->
-            Return.return model (Route.goTo route)
-
-        HandleRouteChange route ->
-            Return.singleton { model | route = route }
-                |> Return.map
-                    (\model ->
-                        case ( model.user, route ) of
-                            ( Just user, Authorized (Route.EditDeck deckId) ) ->
-                                { model | editDeckPage = Just <| Page.EditDeck.init deckId }
-
-                            _ ->
-                                model
-                    )
-                |> Return.effect_
-                    (\model ->
-                        case ( model.user, route ) of
-                            ( Nothing, Authorized _ ) ->
-                                Route.goTo Home
-
-                            _ ->
-                                Cmd.none
-                    )
+        ChangePublicRoute route ->
+            Return.return model (Route.goTo (Public route))
+                |> Return.map Anonymous
 
         FetchUserRequest ->
             model
                 |> Return.singleton
-                |> Return.command (User.fetchCurrentUser FetchUserResponse)
+                |> Return.command (User.fetchCurrentUser (Message.Anonymous << FetchUserResponse))
+                |> Return.map Anonymous
 
         FetchUserResponse result ->
             result
                 |> Result.map
                     (\user ->
-                        Return.singleton { model | user = Just user }
-                            |> Return.command (Deck.fetchDecks FetchDecksResponse)
-                            |> Return.command (Game.fetchGames FetchGamesResponse)
+                        initLoggedInModel user
+                            |> Return.singleton
+                            |> Return.map LoggedIn
+                            |> Return.command (Deck.fetchDecks (Message.LoggedIn << FetchDecksResponse))
+                            |> Return.command (Game.fetchGames (Message.LoggedIn << FetchGamesResponse))
                     )
-                |> Result.withDefault (Return.return model (Route.goTo Home))
+                |> Result.withDefault
+                    (Return.return model (Route.goTo (Public Home))
+                        |> Return.map Anonymous
+                    )
+
+        RegisterUserRequest ->
+            Return.singleton model
+                |> Return.map Anonymous
+                |> Return.command (Signup.signup (Message.Anonymous << RegisterUserResponse) (Page.Home.getSignupForm model.homePage))
+
+        RegisterUserResponse result ->
+            Return.singleton model
+                |> Return.map
+                    (\model ->
+                        result
+                            |> Result.map (LoggedIn << initLoggedInModel)
+                            |> Result.withDefault (Anonymous model)
+                    )
+
+        SetSignupUsername username ->
+            Return.singleton { model | homePage = Page.Home.setSignupUsername username model.homePage }
+                |> Return.map Anonymous
+
+        SetSignupPassword password ->
+            Return.singleton { model | homePage = Page.Home.setSignupPassword password model.homePage }
+                |> Return.map Anonymous
+
+        SetLoginUsername username ->
+            Return.singleton { model | homePage = Page.Home.setLoginUsername username model.homePage }
+                |> Return.map Anonymous
+
+        SetLoginPassword password ->
+            Return.singleton { model | homePage = Page.Home.setLoginPassword password model.homePage }
+                |> Return.map Anonymous
+
+        LoginRequest ->
+            Return.singleton model
+                |> Return.map Anonymous
+                |> Return.command (Login.login (Message.Anonymous << LoginResponse) (Page.Home.getLoginForm model.homePage))
+
+        LoginResponse result ->
+            result
+                |> Result.map
+                    (\user ->
+                        initLoggedInModel user
+                            |> Return.singleton
+                            |> Return.map LoggedIn
+                            |> Return.command (Deck.fetchDecks (Message.LoggedIn << FetchDecksResponse))
+                            |> Return.command (Game.fetchGames (Message.LoggedIn << FetchGamesResponse))
+                    )
+                |> Result.withDefault
+                    (Return.return model (Route.goTo (Public Home))
+                        |> Return.map Anonymous
+                    )
+
+
+updateLoggedIn : LoggedInMessage -> LoggedInModel -> Return Message Model
+updateLoggedIn message model =
+    (case message of
+        ChangeRoute route ->
+            Return.return model (Route.goTo route)
 
         SetCardSearchQuery query ->
             Return.singleton model
@@ -186,7 +277,7 @@ update message model =
                         (\deck ->
                             { model | editDeckPage = Just <| Page.EditDeck.init (Deck.getId deck), decks = Just (deck :: allDecks) }
                                 |> Return.singleton
-                                |> Return.command (Route.goTo (Authorized <| Route.EditDeck (Deck.getId deck)))
+                                |> Return.command (Route.goTo (Route.EditDeck (Deck.getId deck)))
                         )
                     |> Result.withDefault (Return.singleton model)
 
@@ -201,48 +292,6 @@ update message model =
                                 )
                             |> Result.withDefault model
                     )
-
-        RegisterUserRequest ->
-            Return.singleton model
-                |> Return.command (Signup.signup RegisterUserResponse (Page.Home.getSignupForm model.homePage))
-
-        RegisterUserResponse result ->
-            Return.singleton model
-                |> Return.map
-                    (\model ->
-                        result
-                            |> Result.map
-                                (\user ->
-                                    { model | user = Just user }
-                                )
-                            |> Result.withDefault model
-                    )
-
-        SetSignupUsername username ->
-            Return.singleton { model | homePage = Page.Home.setSignupUsername username model.homePage }
-
-        SetSignupPassword password ->
-            Return.singleton { model | homePage = Page.Home.setSignupPassword password model.homePage }
-
-        SetLoginUsername username ->
-            Return.singleton { model | homePage = Page.Home.setLoginUsername username model.homePage }
-
-        SetLoginPassword password ->
-            Return.singleton { model | homePage = Page.Home.setLoginPassword password model.homePage }
-
-        LoginRequest ->
-            Return.singleton model
-                |> Return.command (Login.login LoginResponse (Page.Home.getLoginForm model.homePage))
-
-        LoginResponse result ->
-            result
-                |> Result.map
-                    (\user ->
-                        Return.singleton { model | user = Just user }
-                            |> Return.command (Deck.fetchDecks FetchDecksResponse)
-                            |> Return.command (Game.fetchGames FetchGamesResponse)
-                    )
-                |> Result.withDefault (Return.return model (Route.goTo Home))
 
         AddCardToMainDeck deckId card ->
             Return.singleton
@@ -321,7 +370,7 @@ update message model =
                             )
             }
                 |> Return.singleton
-                |> Return.command (Navigation.newUrl (Route.toUrl (Authorized <| Route.PlayGame gameId)))
+                |> Return.command (Navigation.newUrl (Route.toUrl (Route.PlayGame gameId)))
                 |> Return.command (Ports.broadcastGameJoined { username = playerName, gameId = gameId })
 
         HandleGameJoined playerName gameId ->
@@ -346,9 +395,8 @@ update message model =
                             |> Result.map (\games -> { model | games = Just games })
                             |> Result.withDefault model
                     )
-
-        NoOp ->
-            Return.singleton model
+    )
+        |> Return.mapBoth Message.LoggedIn LoggedIn
 
 
 
@@ -357,55 +405,69 @@ update message model =
 
 view : Model -> Html Message
 view model =
-    case model.route of
-        Home ->
-            Page.Home.view model.user model.homePage
+    case model of
+        Anonymous data ->
+            case data.route of
+                Home ->
+                    Page.Home.defaultView data.homePage
 
-        Authorized authorizedRoute ->
-            case authorizedRoute of
+                NotFound url ->
+                    Html.div
+                        []
+                        [ Html.text ("Not Found: " ++ url)
+                        ]
+
+        LoggedIn data ->
+            case data.route of
+                Public Home ->
+                    Page.Home.loggedInView data.user
+
                 Route.Decks ->
                     let
                         decks =
-                            Maybe.withDefault [] model.decks
+                            Maybe.withDefault [] data.decks
                     in
-                        model.decksPage
+                        data.decksPage
                             |> Page.Decks.view decks
                             |> layout model
 
                 Route.EditDeck deckId ->
                     let
                         decks =
-                            Maybe.withDefault [] model.decks
+                            Maybe.withDefault [] data.decks
                     in
-                        model.editDeckPage
+                        data.editDeckPage
                             |> Maybe.map (Page.EditDeck.view decks)
                             |> Maybe.map (layout model)
                             |> Maybe.withDefault
                                 (Html.text "No deck is currently being edited")
 
                 Route.Games ->
-                    model.games
+                    data.games
                         |> Maybe.withDefault []
-                        |> Page.Games.view model.user
+                        |> Page.Games.view data.user
                         |> layout model
 
                 Route.PlayGame gameId ->
                     Html.text gameId
 
-        NotFound url ->
-            Html.div
-                []
-                [ Html.text ("Not Found: " ++ url)
-                ]
+                Public (NotFound url) ->
+                    Html.div
+                        []
+                        [ Html.text ("Not Found: " ++ url)
+                        ]
 
 
 layout : Model -> Html Message -> Html Message
 layout model content =
     let
         username =
-            model.user
-                |> Maybe.map User.getUsername
-                |> Maybe.withDefault "log in"
+            case model of
+                Anonymous _ ->
+                    "log in"
+
+                LoggedIn data ->
+                    User.getUsername data.user
     in
         Html.div
             []
@@ -429,5 +491,5 @@ layout model content =
 subscriptions : Model -> Sub Message
 subscriptions model =
     Sub.batch
-        [ Ports.handleGameJoined (\{ username, gameId } -> HandleGameJoined username gameId)
+        [ Ports.handleGameJoined (\{ username, gameId } -> Message.LoggedIn <| HandleGameJoined username gameId)
         ]

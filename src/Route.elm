@@ -1,10 +1,11 @@
 module Route
     exposing
         ( Route(..)
-        , AuthorizedRoute(..)
+        , PublicRoute(..)
         , fromLocation
         , toUrl
         , goTo
+        , initialRoute
         )
 
 import Navigation
@@ -22,16 +23,16 @@ import Game
 
 
 type Route
-    = Home
-    | Authorized AuthorizedRoute
-    | NotFound String
-
-
-type AuthorizedRoute
-    = Decks
+    = Public PublicRoute
+    | Decks
     | EditDeck Deck.Id
     | Games
     | PlayGame Game.Id
+
+
+type PublicRoute
+    = Home
+    | NotFound String
 
 
 goTo : Route -> Cmd msg
@@ -42,25 +43,25 @@ goTo route =
 toUrl : Route -> String
 toUrl route =
     case route of
-        Home ->
-            "/"
+        Public publicRoute ->
+            case publicRoute of
+                Home ->
+                    "/"
 
-        Authorized authorizedRoute ->
-            case authorizedRoute of
-                Decks ->
-                    "/decks"
+                NotFound str ->
+                    str
 
-                EditDeck deckId ->
-                    "/edit-deck/" ++ deckId
+        Decks ->
+            "/decks"
 
-                Games ->
-                    "/games"
+        EditDeck deckId ->
+            "/edit-deck/" ++ deckId
 
-                PlayGame gameId ->
-                    "/game/" ++ gameId
+        Games ->
+            "/games"
 
-        NotFound str ->
-            str
+        PlayGame gameId ->
+            "/game/" ++ gameId
 
 
 fromLocation : Navigation.Location -> Route
@@ -70,7 +71,17 @@ fromLocation location =
             String.dropLeft 1 location.pathname
     in
         UrlParser.parsePath routeParser location
-            |> Maybe.withDefault (NotFound path)
+            |> Maybe.withDefault (Public <| NotFound path)
+
+
+initialRoute : Navigation.Location -> PublicRoute
+initialRoute location =
+    case fromLocation location of
+        Public publicRoute ->
+            publicRoute
+
+        _ ->
+            Home
 
 
 viewDecks : Parser a a
@@ -96,9 +107,9 @@ playGame =
 routeParser : Parser (Route -> a) a
 routeParser =
     oneOf
-        [ UrlParser.map (Authorized << PlayGame) playGame
-        , UrlParser.map (Authorized Games) games
-        , UrlParser.map (Authorized << EditDeck) editDeck
-        , UrlParser.map (Authorized Decks) viewDecks
-        , UrlParser.map Home UrlParser.top
+        [ UrlParser.map (PlayGame) playGame
+        , UrlParser.map (Games) games
+        , UrlParser.map (EditDeck) editDeck
+        , UrlParser.map (Decks) viewDecks
+        , UrlParser.map (Public Home) UrlParser.top
         ]

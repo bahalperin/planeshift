@@ -13,7 +13,7 @@ import Html.Attributes
 import Html.Events
 import Json.Encode
 import Http
-import Message exposing (Message(..))
+import Message exposing (Message(..), AnonymousMessage(..), LoggedInMessage(..))
 import User exposing (User)
 
 
@@ -85,6 +85,7 @@ view loginForm =
                 [ Html.text "Login!" ]
             ]
         ]
+        |> Html.map Anonymous
 
 
 

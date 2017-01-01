@@ -33,7 +33,7 @@ import Html.Attributes
 import Html.Events exposing (onInput)
 import Json.Encode
 import Http
-import Message exposing (Message(..))
+import Message exposing (Message(..), AnonymousMessage(..), LoggedInMessage(..))
 import User exposing (User)
 
 
@@ -83,7 +83,7 @@ view signupForm =
             []
             [ text "Sign up" ]
         , form
-            [ Html.Events.onSubmit RegisterUserRequest
+            [ Html.Events.onSubmit (RegisterUserRequest)
             ]
             [ label
                 [ for "register-username" ]
@@ -91,7 +91,7 @@ view signupForm =
             , input
                 [ id "register-username"
                 , value signupForm.username
-                , onInput SetSignupUsername
+                , onInput (SetSignupUsername)
                 ]
                 []
             , label
@@ -101,7 +101,7 @@ view signupForm =
                 [ id "register-password"
                 , type_ "password"
                 , value signupForm.password
-                , onInput SetSignupPassword
+                , onInput (SetSignupPassword)
                 ]
                 []
             , button
@@ -110,6 +110,7 @@ view signupForm =
                 [ text "Sign up!" ]
             ]
         ]
+        |> Html.map Anonymous
 
 
 
