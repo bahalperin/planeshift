@@ -5,6 +5,7 @@ module Page.EditDeck
         , getCurrentDeckId
         , getCardSearchQuery
         , setSelectedCard
+        , startSearchingForCards
         , setCardSearchQuery
         , setCardSearchResults
         , view
@@ -17,6 +18,7 @@ import String
 import Card exposing (Card)
 import Deck exposing (Deck)
 import Message exposing (Message(..), AnonymousMessage(..), LoggedInMessage(..))
+import SelectableList exposing (SelectableList)
 
 
 -- MODEL
@@ -28,19 +30,23 @@ type EditDeckPage
 
 type alias EditDeckPageData =
     { deckId : String
-    , selectedCardId : Maybe Int
     , cardSearchQuery : String
-    , cardSearchResults : Maybe (List Card)
+    , cardSearchResults : CardSearchResults
+    , isSearchingForCards : Bool
     }
+
+
+type alias CardSearchResults =
+    SelectableList Card
 
 
 init : String -> EditDeckPage
 init deckId =
     EditDeckPage
         { deckId = deckId
-        , selectedCardId = Nothing
         , cardSearchQuery = ""
-        , cardSearchResults = Just []
+        , cardSearchResults = SelectableList.fromList []
+        , isSearchingForCards = False
         }
 
 
@@ -61,7 +67,9 @@ getCardSearchQuery (EditDeckPage editDeckPageData) =
 setSelectedCard : Int -> EditDeckPage -> EditDeckPage
 setSelectedCard cardId (EditDeckPage editDeckPageData) =
     EditDeckPage
-        { editDeckPageData | selectedCardId = Just cardId }
+        { editDeckPageData
+            | cardSearchResults = SelectableList.select (\card -> Card.getId card == cardId) editDeckPageData.cardSearchResults
+        }
 
 
 setCardSearchQuery : String -> EditDeckPage -> EditDeckPage
@@ -70,10 +78,19 @@ setCardSearchQuery query (EditDeckPage editDeckPageData) =
         { editDeckPageData | cardSearchQuery = query }
 
 
+startSearchingForCards : EditDeckPage -> EditDeckPage
+startSearchingForCards (EditDeckPage editDeckPageData) =
+    EditDeckPage
+        { editDeckPageData | isSearchingForCards = True }
+
+
 setCardSearchResults : List Card -> EditDeckPage -> EditDeckPage
 setCardSearchResults cards (EditDeckPage editDeckPageData) =
     EditDeckPage
-        { editDeckPageData | cardSearchResults = Just cards }
+        { editDeckPageData
+            | cardSearchResults = SelectableList.fromList cards
+            , isSearchingForCards = False
+        }
 
 
 
@@ -188,22 +205,22 @@ cardSearch editDeckPageData =
 
 viewCardList : EditDeckPageData -> Html Message
 viewCardList editDeckPageData =
-    let
-        results =
-            editDeckPageData.cardSearchResults
-                |> Maybe.map
-                    (\cards -> viewCardSearchResults cards editDeckPageData)
-                |> Maybe.withDefault
-                    (Html.span
-                        []
-                        [ Html.text "Loading" ]
-                    )
-    in
-        Html.div
-            []
-            [ cardSearch editDeckPageData
-            , results
-            ]
+    Html.div
+        []
+        [ cardSearch editDeckPageData
+        , loadingText editDeckPageData.isSearchingForCards
+        , editDeckPageData.cardSearchResults
+            |> SelectableList.toList
+            |> (\cards -> viewCardSearchResults cards editDeckPageData)
+        ]
+
+
+loadingText : Bool -> Html Message
+loadingText isLoading =
+    if isLoading then
+        Html.span [] [ Html.text "Loading" ]
+    else
+        Html.span [] []
 
 
 viewCardSearchResults : List Card -> EditDeckPageData -> Html Message
@@ -228,21 +245,11 @@ viewCardSearchResults cards editDeckPageData =
 
 viewSelectedCard : List Deck -> EditDeckPageData -> Html Message
 viewSelectedCard decks editDeckPageData =
-    let
-        deckCards =
-            decks
-                |> List.map (\d -> List.append (Deck.getMainDeck d) (Deck.getSideboard d))
-                |> List.concat
-
-        cardImageUrl =
-            editDeckPageData.cardSearchResults
-                |> Maybe.withDefault []
-                |> List.append deckCards
-                |> List.filter (\c -> Card.getId c == (editDeckPageData.selectedCardId |> Maybe.withDefault 0))
-                |> List.head
-                |> Maybe.map Card.frontImageUrl
-                |> Maybe.withDefault Card.backImageUrl
-    in
-        Html.img
-            [ Html.Attributes.src cardImageUrl ]
-            []
+    Html.img
+        [ editDeckPageData.cardSearchResults
+            |> SelectableList.getSelected
+            |> Maybe.map Card.frontImageUrl
+            |> Maybe.withDefault Card.backImageUrl
+            |> Html.Attributes.src
+        ]
+        []

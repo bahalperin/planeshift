@@ -217,7 +217,11 @@ updateLoggedIn message model =
                     )
 
         SearchForCardsRequest ->
-            Return.singleton model
+            { model
+                | editDeckPage =
+                    Maybe.map Page.EditDeck.startSearchingForCards model.editDeckPage
+            }
+                |> Return.singleton
                 |> Return.effect_
                     (\{ editDeckPage } ->
                         editDeckPage
