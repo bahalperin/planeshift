@@ -11,12 +11,13 @@ import Route exposing (Route(..), PublicRoute(..))
 import Message exposing (Message(..), AnonymousMessage(..), LoggedInMessage(..))
 import Card
 import Deck exposing (Deck)
+import Decks exposing (Decks)
 import Game exposing (Game)
 import Page.Home exposing (HomePage)
 import Page.Decks exposing (DecksPage)
 import Page.Games
-import Page.EditDeck exposing (EditDeckPage)
 import Ports
+import SelectableList
 
 
 main : Program Never Model Message
@@ -47,10 +48,9 @@ type alias AnonymousModel =
 type alias LoggedInModel =
     { user : User
     , route : Route
-    , decks : Maybe (List Deck)
+    , decks : Maybe Decks
     , games : Maybe (List Game)
     , decksPage : DecksPage
-    , editDeckPage : Maybe EditDeckPage
     }
 
 
@@ -71,7 +71,6 @@ initLoggedInModel user =
     , decks = Nothing
     , games = Nothing
     , decksPage = Page.Decks.init
-    , editDeckPage = Nothing
     }
 
 
@@ -91,13 +90,13 @@ update message model =
         ( LoggedIn loggedInModel, HandleRouteChange route ) ->
             { loggedInModel
                 | route = route
-                , editDeckPage =
+                , decks =
                     case route of
                         Route.EditDeck deckId ->
-                            Just <| Page.EditDeck.init deckId
+                            Maybe.map (SelectableList.select (\{ deck } -> Deck.getId deck == deckId)) loggedInModel.decks
 
                         _ ->
-                            loggedInModel.editDeckPage
+                            loggedInModel.decks
             }
                 |> LoggedIn
                 |> Return.singleton
@@ -211,21 +210,21 @@ updateLoggedIn message model =
             Return.singleton model
                 |> Return.map
                     (\model ->
-                        model.editDeckPage
-                            |> Maybe.map (\editDeckPage -> { model | editDeckPage = Just <| Page.EditDeck.setCardSearchQuery query editDeckPage })
+                        model.decks
+                            |> Maybe.map (\decks -> { model | decks = Just <| Decks.setCardSearchQuery query decks })
                             |> Maybe.withDefault model
                     )
 
         SearchForCardsRequest ->
             { model
-                | editDeckPage =
-                    Maybe.map Page.EditDeck.startSearchingForCards model.editDeckPage
+                | decks =
+                    Maybe.map Decks.startSearchingForCards model.decks
             }
                 |> Return.singleton
                 |> Return.effect_
-                    (\{ editDeckPage } ->
-                        editDeckPage
-                            |> Maybe.map (Page.EditDeck.getCardSearchQuery >> Card.getCardsByName SearchForCardsResponse)
+                    (\{ decks } ->
+                        decks
+                            |> Maybe.map (Decks.getCardSearchQuery >> Card.getCardsByName SearchForCardsResponse)
                             |> Maybe.withDefault Cmd.none
                     )
 
@@ -233,9 +232,9 @@ updateLoggedIn message model =
             Return.singleton model
                 |> Return.map
                     (\model ->
-                        case ( model.editDeckPage, result ) of
-                            ( Just editDeckPage, Ok cards ) ->
-                                { model | editDeckPage = Just <| Page.EditDeck.setCardSearchResults cards editDeckPage }
+                        case ( model.decks, result ) of
+                            ( Just decks, Ok cards ) ->
+                                { model | decks = Just <| Decks.setCardSearchResults cards decks }
 
                             _ ->
                                 model
@@ -245,13 +244,13 @@ updateLoggedIn message model =
             Return.singleton model
                 |> Return.map
                     (\model ->
-                        model.editDeckPage
+                        model.decks
                             |> Maybe.map
-                                (\editDeckPage ->
+                                (\decks ->
                                     { model
-                                        | editDeckPage =
-                                            editDeckPage
-                                                |> Page.EditDeck.setSelectedCard (Card.getId card)
+                                        | decks =
+                                            decks
+                                                |> Decks.setSelectedCard (Card.getId card)
                                                 |> Just
                                     }
                                 )
@@ -271,19 +270,14 @@ updateLoggedIn message model =
                     )
 
         AddDeckResponse result ->
-            let
-                allDecks =
-                    model.decks
-                        |> Maybe.withDefault []
-            in
-                result
-                    |> Result.map
-                        (\deck ->
-                            { model | editDeckPage = Just <| Page.EditDeck.init (Deck.getId deck), decks = Just (deck :: allDecks) }
-                                |> Return.singleton
-                                |> Return.command (Route.goTo (Route.EditDeck (Deck.getId deck)))
-                        )
-                    |> Result.withDefault (Return.singleton model)
+            result
+                |> Result.map
+                    (\deck ->
+                        { model | decks = Maybe.map (SelectableList.cons { deck = deck, editPage = Decks.initEditDeckPage }) model.decks }
+                            |> Return.singleton
+                            |> Return.command (Route.goTo (Route.EditDeck (Deck.getId deck)))
+                    )
+                |> Result.withDefault (Return.singleton model)
 
         FetchDecksResponse result ->
             Return.singleton model
@@ -292,7 +286,13 @@ updateLoggedIn message model =
                         result
                             |> Result.map
                                 (\decks ->
-                                    { model | decks = Just decks }
+                                    { model
+                                        | decks =
+                                            decks
+                                                |> List.map (\deck -> { deck = deck, editPage = Decks.initEditDeckPage })
+                                                |> SelectableList.fromList
+                                                |> Just
+                                    }
                                 )
                             |> Result.withDefault model
                     )
@@ -302,7 +302,8 @@ updateLoggedIn message model =
                 { model
                     | decks =
                         model.decks
-                            |> Maybe.map (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.addCardToMainDeck card))
+                            |> Maybe.map
+                                (SelectableList.updateIf (\deckData -> Deck.getId deckData.deck == deckId) (\deckData -> { deckData | deck = Deck.addCardToMainDeck card deckData.deck }))
                 }
 
         RemoveCardFromMainDeck deckId card ->
@@ -311,7 +312,7 @@ updateLoggedIn message model =
                     | decks =
                         model.decks
                             |> Maybe.map
-                                (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.removeCardFromMainDeck card))
+                                (SelectableList.updateIf (\deckData -> Deck.getId deckData.deck == deckId) (\deckData -> { deckData | deck = Deck.removeCardFromMainDeck card deckData.deck }))
                 }
 
         AddCardToSideboard deckId card ->
@@ -320,7 +321,7 @@ updateLoggedIn message model =
                     | decks =
                         model.decks
                             |> Maybe.map
-                                (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.addCardToSideboard card))
+                                (SelectableList.updateIf (\deckData -> Deck.getId deckData.deck == deckId) (\deckData -> { deckData | deck = Deck.addCardToSideboard card deckData.deck }))
                 }
 
         RemoveCardFromSideboard deckId card ->
@@ -329,24 +330,16 @@ updateLoggedIn message model =
                     | decks =
                         model.decks
                             |> Maybe.map
-                                (List.Extra.updateIf (\deck -> Deck.getId deck == deckId) (Deck.removeCardFromSideboard card))
+                                (SelectableList.updateIf (\deckData -> Deck.getId deckData.deck == deckId) (\deckData -> { deckData | deck = Deck.removeCardFromSideboard card deckData.deck }))
                 }
 
-        SaveDeckRequest deckId ->
-            let
-                maybeDeck =
-                    model.decks
-                        |> Maybe.withDefault []
-                        |> List.filter (\d -> Deck.getId d == deckId)
-                        |> List.head
-            in
-                model
-                    |> Return.singleton
-                    |> Return.command
-                        (maybeDeck
-                            |> Maybe.map (Deck.saveDeck SaveDeckResponse)
-                            |> Maybe.withDefault Cmd.none
-                        )
+        SaveDeckRequest deck ->
+            model
+                |> Return.singleton
+                |> Return.command
+                    (deck
+                        |> Deck.saveDeck SaveDeckResponse
+                    )
 
         SaveDeckResponse result ->
             Return.singleton model
@@ -355,10 +348,9 @@ updateLoggedIn message model =
             let
                 updatedDecks =
                     model.decks
-                        |> Maybe.withDefault []
-                        |> List.filter (\d -> Deck.getId d /= deckId)
+                        |> Maybe.map (SelectableList.filter (\deckData -> Deck.getId deckData.deck /= deckId))
             in
-                Return.singleton { model | decks = Just updatedDecks }
+                Return.singleton { model | decks = updatedDecks }
                     |> Return.command (Deck.deleteDeck DeleteDeckResponse deckId)
 
         DeleteDeckResponse result ->
@@ -429,22 +421,19 @@ view model =
                 Route.Decks ->
                     let
                         decks =
-                            Maybe.withDefault [] data.decks
+                            data.decks
+                                |> Maybe.map (\decks -> decks |> SelectableList.toList |> List.map .deck)
+                                |> Maybe.withDefault []
                     in
                         data.decksPage
                             |> Page.Decks.view decks
                             |> layout model
 
                 Route.EditDeck deckId ->
-                    let
-                        decks =
-                            Maybe.withDefault [] data.decks
-                    in
-                        data.editDeckPage
-                            |> Maybe.map (Page.EditDeck.view decks)
-                            |> Maybe.map (layout model)
-                            |> Maybe.withDefault
-                                (Html.text "No deck is currently being edited")
+                    data.decks
+                        |> Maybe.map Decks.view
+                        |> Maybe.withDefault
+                            (Html.text "No deck is currently being edited")
 
                 Route.Games ->
                     data.games

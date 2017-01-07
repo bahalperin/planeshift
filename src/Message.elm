@@ -38,7 +38,7 @@ type LoggedInMessage
     | HandleGameJoined String Game.Id
     | FetchGamesRequest
     | FetchGamesResponse (Result Http.Error (List Game))
-    | SaveDeckRequest Deck.Id
+    | SaveDeckRequest Deck
     | SaveDeckResponse (Result Http.Error Deck)
     | DeleteDeckRequest Deck.Id
     | DeleteDeckResponse (Result Http.Error ())
