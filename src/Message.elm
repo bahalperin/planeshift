@@ -10,7 +10,7 @@ import Route exposing (Route, PublicRoute)
 import User exposing (User)
 import Card exposing (Card)
 import Deck exposing (Deck)
-import Game exposing (Game)
+import Games exposing (Game)
 
 
 type Message
@@ -34,8 +34,8 @@ type LoggedInMessage
     | RemoveCardFromMainDeck Deck.Id Card
     | AddCardToSideboard Deck.Id Card
     | RemoveCardFromSideboard Deck.Id Card
-    | JoinGame String Game.Id
-    | HandleGameJoined String Game.Id
+    | JoinGame String Games.GameId
+    | HandleGameJoined String Games.GameId
     | FetchGamesRequest
     | FetchGamesResponse (Result Http.Error (List Game))
     | SaveDeckRequest Deck

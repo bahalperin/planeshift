@@ -19,7 +19,7 @@ import UrlParser
         , string
         )
 import Deck
-import Game
+import Games exposing (GameId)
 
 
 type Route
@@ -27,7 +27,7 @@ type Route
     | Decks
     | EditDeck Deck.Id
     | Games
-    | PlayGame Game.Id
+    | PlayGame GameId
 
 
 type PublicRoute

@@ -2,7 +2,6 @@ module Main exposing (..)
 
 import Html exposing (Html)
 import Navigation
-import List.Extra
 import Return exposing (Return)
 import Login
 import Signup
@@ -12,12 +11,11 @@ import Message exposing (Message(..), AnonymousMessage(..), LoggedInMessage(..))
 import Card
 import Deck exposing (Deck)
 import Decks exposing (Decks)
-import Game exposing (Game)
 import Page.Home exposing (HomePage)
 import Page.Decks exposing (DecksPage)
-import Page.Games
 import Ports
 import SelectableList
+import Games exposing (Games)
 
 
 main : Program Never Model Message
@@ -49,7 +47,7 @@ type alias LoggedInModel =
     { user : User
     , route : Route
     , decks : Maybe Decks
-    , games : Maybe (List Game)
+    , games : Maybe Games
     , decksPage : DecksPage
     }
 
@@ -142,7 +140,7 @@ updateAnonymous message model =
                             |> Return.singleton
                             |> Return.map LoggedIn
                             |> Return.command (Deck.fetchDecks (Message.LoggedIn << FetchDecksResponse))
-                            |> Return.command (Game.fetchGames (Message.LoggedIn << FetchGamesResponse))
+                            |> Return.command (Games.fetchGames (Message.LoggedIn << FetchGamesResponse))
                     )
                 |> Result.withDefault
                     (Return.return model (Route.goTo (Public Home))
@@ -192,7 +190,7 @@ updateAnonymous message model =
                             |> Return.singleton
                             |> Return.map LoggedIn
                             |> Return.command (Deck.fetchDecks (Message.LoggedIn << FetchDecksResponse))
-                            |> Return.command (Game.fetchGames (Message.LoggedIn << FetchGamesResponse))
+                            |> Return.command (Games.fetchGames (Message.LoggedIn << FetchGamesResponse))
                     )
                 |> Result.withDefault
                     (Return.return model (Route.goTo (Public Home))
@@ -358,12 +356,7 @@ updateLoggedIn message model =
 
         JoinGame playerName gameId ->
             { model
-                | games =
-                    model.games
-                        |> Maybe.map
-                            (\games ->
-                                List.Extra.updateIf (\game -> Game.getId game == gameId) (Game.addPlayer playerName) games
-                            )
+                | games = Maybe.map (Games.joinGame gameId playerName) model.games
             }
                 |> Return.singleton
                 |> Return.command (Navigation.newUrl (Route.toUrl (Route.PlayGame gameId)))
@@ -371,24 +364,19 @@ updateLoggedIn message model =
 
         HandleGameJoined playerName gameId ->
             { model
-                | games =
-                    model.games
-                        |> Maybe.map
-                            (\games ->
-                                List.Extra.updateIf (\game -> Game.getId game == gameId) (Game.addPlayer playerName) games
-                            )
+                | games = Maybe.map (Games.joinGame gameId playerName) model.games
             }
                 |> Return.singleton
 
         FetchGamesRequest ->
-            Return.return model (Game.fetchGames FetchGamesResponse)
+            Return.return model (Games.fetchGames FetchGamesResponse)
 
         FetchGamesResponse result ->
             Return.singleton model
                 |> Return.map
                     (\model ->
                         result
-                            |> Result.map (\games -> { model | games = Just games })
+                            |> Result.map (\games -> { model | games = Just <| Games.fromList games })
                             |> Result.withDefault model
                     )
     )
@@ -437,9 +425,13 @@ view model =
 
                 Route.Games ->
                     data.games
-                        |> Maybe.withDefault []
-                        |> Page.Games.view data.user
-                        |> layout model
+                        |> Maybe.map
+                            (\games ->
+                                games
+                                    |> (Games.view (\username gameId -> Message.LoggedIn <| JoinGame username gameId) data.user)
+                                    |> layout model
+                            )
+                        |> Maybe.withDefault (Html.span [] [])
 
                 Route.PlayGame gameId ->
                     Html.text gameId

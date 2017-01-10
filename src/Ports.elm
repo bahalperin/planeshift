@@ -1,9 +1,9 @@
 port module Ports exposing (..)
 
-import Game
+import Games exposing (GameId)
 
 
-port broadcastGameJoined : { username : String, gameId : Game.Id } -> Cmd message
+port broadcastGameJoined : { username : String, gameId : GameId } -> Cmd message
 
 
-port handleGameJoined : ({ username : String, gameId : Game.Id } -> message) -> Sub message
+port handleGameJoined : ({ username : String, gameId : GameId } -> message) -> Sub message
