@@ -16,6 +16,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Json.Decode
 import Card exposing (Card)
+import Deck exposing (Deck)
 import User exposing (User)
 
 
@@ -156,7 +157,7 @@ viewSetupGame user ({ basics, state } as setupGame) joinGame =
     tr
         []
         [ td [] [ text basics.name ]
-        , td [] [ text <| (setupPlayerList setupGame |> List.filterMap identity |> List.length |> toString) ++ "/" ++ (setupPlayerList setupGame |> List.length |> toString) ]
+        , td [] [ text <| (setupPlayerList setupGame |> List.length |> toString) ++ "/" ++ (setupPlayerList setupGame |> List.length |> toString) ]
         , td
             []
             [ button
@@ -168,9 +169,44 @@ viewSetupGame user ({ basics, state } as setupGame) joinGame =
         ]
 
 
-setupPlayerList : SetupGame -> List (Maybe SetupPlayer)
+setupPlayersFromList : List SetupPlayer -> ( Maybe SetupPlayer, Maybe SetupPlayer )
+setupPlayersFromList playerList =
+    case playerList of
+        first :: second :: rest ->
+            ( Just first, Just second )
+
+        first :: [] ->
+            ( Just first, Nothing )
+
+        [] ->
+            ( Nothing, Nothing )
+
+
+setupPlayerList : SetupGame -> List SetupPlayer
 setupPlayerList { state } =
     [ Tuple.first state.players, Tuple.second state.players ]
+        |> List.filterMap identity
+
+
+findSetupPlayer : String -> SetupGame -> Maybe SetupPlayer
+findSetupPlayer username setupGame =
+    setupGame
+        |> setupPlayerList
+        |> List.Extra.find (\setupPlayer -> setupPlayer.username == username)
+
+
+isSetupPlayerInGame : String -> SetupGame -> Bool
+isSetupPlayerInGame username setupGame =
+    setupGame
+        |> findSetupPlayer username
+        |> (\maybePlayer ->
+                case maybePlayer of
+                    Just player ->
+                        True
+
+                    Nothing ->
+                        False
+           )
 
 
 getName : Game -> String
@@ -219,6 +255,33 @@ initSetupPlayer username =
     { username = username
     , cardsForGame = []
     , remainingCards = []
+    }
+
+
+loadDeck : String -> GameId -> Deck -> Games -> Games
+loadDeck username gameId deck (Games games) =
+    Games
+        { games
+            | setup = List.Extra.updateIf (\{ basics } -> basics.id == gameId) (loadDeckHelp username deck) games.setup
+        }
+
+
+loadDeckHelp : String -> Deck -> SetupGame -> SetupGame
+loadDeckHelp username deck ({ basics, state } as setupGame) =
+    setupGame
+        |> updateSetupPlayer username (\setupPlayer -> { setupPlayer | cardsForGame = Deck.getMainDeck deck, remainingCards = Deck.getSideboard deck })
+
+
+updateSetupPlayer : String -> (SetupPlayer -> SetupPlayer) -> SetupGame -> SetupGame
+updateSetupPlayer username update ({ basics, state } as setupGame) =
+    { basics = basics
+    , state =
+        { state
+            | players =
+                setupPlayerList setupGame
+                    |> List.Extra.updateIf (\setupPlayer -> setupPlayer.username == username) update
+                    |> setupPlayersFromList
+        }
     }
 
 
