@@ -1,6 +1,7 @@
 module Message
     exposing
         ( Message(..)
+        , LoadingMessage(..)
         , AnonymousMessage(..)
         , LoggedInMessage(..)
         )
@@ -14,7 +15,8 @@ import Games exposing (Game)
 
 
 type Message
-    = Anonymous AnonymousMessage
+    = Loading LoadingMessage
+    | Anonymous AnonymousMessage
     | LoggedIn LoggedInMessage
     | HandleRouteChange Route
     | NoOp
@@ -22,13 +24,13 @@ type Message
 
 type LoggedInMessage
     = ChangeRoute Route
-    | SetCardSearchQuery String
-    | SearchForCardsRequest
-    | SearchForCardsResponse (Result Http.Error (List Card))
+    | SetCardSearchQuery Deck.Id String
+    | SearchForCardsRequest Deck.Id
+    | SearchForCardsResponse Deck.Id (Result Http.Error (List Card))
     | SetAddNewDeckName String
     | AddDeckRequest
     | AddDeckResponse (Result Http.Error Deck)
-    | SelectMtgCard Card
+    | SelectMtgCard Deck.Id Card
     | FetchDecksResponse (Result Http.Error (List Deck))
     | AddCardToMainDeck Deck.Id Card
     | RemoveCardFromMainDeck Deck.Id Card
@@ -46,8 +48,6 @@ type LoggedInMessage
 
 type AnonymousMessage
     = ChangePublicRoute PublicRoute
-    | FetchUserRequest
-    | FetchUserResponse (Result Http.Error User)
     | RegisterUserRequest
     | RegisterUserResponse (Result Http.Error User)
     | SetSignupUsername String
@@ -56,3 +56,8 @@ type AnonymousMessage
     | SetLoginPassword String
     | LoginRequest
     | LoginResponse (Result Http.Error User)
+
+
+type LoadingMessage
+    = FetchUserRequest
+    | FetchUserResponse (Result Http.Error User)

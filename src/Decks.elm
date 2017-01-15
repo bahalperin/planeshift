@@ -1,5 +1,6 @@
 module Decks exposing (..)
 
+import List.Extra
 import Card exposing (Card)
 import Deck exposing (Deck)
 import SelectableList exposing (SelectableList)
@@ -10,7 +11,7 @@ import Message exposing (Message(..), AnonymousMessage(..), LoggedInMessage(..))
 
 
 type alias Decks =
-    SelectableList DeckData
+    List DeckData
 
 
 type alias DeckData =
@@ -32,42 +33,42 @@ initEditDeckPage =
     }
 
 
-setSelectedCard : Int -> Decks -> Decks
-setSelectedCard cardId decks =
-    SelectableList.updateSelected (\({ editPage } as deckData) -> { deckData | editPage = { editPage | cardSearchResults = SelectableList.select (\card -> Card.getId card == cardId) editPage.cardSearchResults } }) decks
-
-
-getCardSearchQuery : Decks -> String
-getCardSearchQuery decks =
+getCardSearchQuery : Deck.Id -> Decks -> String
+getCardSearchQuery deckId decks =
     decks
-        |> SelectableList.getSelected
+        |> List.Extra.find (\{ deck } -> Deck.getId deck == deckId)
         |> Maybe.map (\{ editPage } -> editPage.cardSearchQuery)
         |> Maybe.withDefault ""
 
 
-setCardSearchQuery : String -> Decks -> Decks
-setCardSearchQuery query decks =
-    SelectableList.updateSelected (\({ editPage } as deckData) -> { deckData | editPage = { editPage | cardSearchQuery = query } }) decks
+setSelectedCard : Deck.Id -> Int -> Decks -> Decks
+setSelectedCard deckId cardId decks =
+    List.Extra.updateIf (\{ deck } -> Deck.getId deck == deckId) (\({ editPage } as deckData) -> { deckData | editPage = { editPage | cardSearchResults = SelectableList.select (\card -> Card.getId card == cardId) editPage.cardSearchResults } }) decks
 
 
-startSearchingForCards : Decks -> Decks
-startSearchingForCards decks =
-    SelectableList.updateSelected (\({ editPage } as deckData) -> { deckData | editPage = { editPage | isSearchingForCards = True } }) decks
+setCardSearchQuery : Deck.Id -> String -> Decks -> Decks
+setCardSearchQuery deckId query decks =
+    List.Extra.updateIf (\{ deck } -> Deck.getId deck == deckId) (\({ editPage } as deckData) -> { deckData | editPage = { editPage | cardSearchQuery = query } }) decks
 
 
-setCardSearchResults : List Card -> Decks -> Decks
-setCardSearchResults cards decks =
-    SelectableList.updateSelected (\({ editPage } as deckData) -> { deckData | editPage = { editPage | cardSearchResults = SelectableList.fromList cards, isSearchingForCards = False } }) decks
+startSearchingForCards : Deck.Id -> Decks -> Decks
+startSearchingForCards deckId decks =
+    List.Extra.updateIf (\{ deck } -> Deck.getId deck == deckId) (\({ editPage } as deckData) -> { deckData | editPage = { editPage | isSearchingForCards = True } }) decks
+
+
+setCardSearchResults : Deck.Id -> List Card -> Decks -> Decks
+setCardSearchResults deckId cards decks =
+    List.Extra.updateIf (\{ deck } -> Deck.getId deck == deckId) (\({ editPage } as deckData) -> { deckData | editPage = { editPage | cardSearchResults = SelectableList.fromList cards, isSearchingForCards = False } }) decks
 
 
 
 -- VIEW
 
 
-view : Decks -> Html Message
-view decks =
+view : Deck.Id -> Decks -> Html Message
+view deckId decks =
     decks
-        |> SelectableList.getSelected
+        |> List.Extra.find (\{ deck } -> Deck.getId deck == deckId)
         |> Maybe.map
             (\deckData ->
                 Html.div
@@ -121,13 +122,13 @@ viewDeckList { deck, editPage } =
 
 mainDeckCard : Int -> Card -> Deck -> Html Message
 mainDeckCard count card deck =
-    deckListCard count card (AddCardToMainDeck (Deck.getId deck) card) (RemoveCardFromMainDeck (Deck.getId deck) card) (SelectMtgCard card)
+    deckListCard count card (AddCardToMainDeck (Deck.getId deck) card) (RemoveCardFromMainDeck (Deck.getId deck) card) (SelectMtgCard (Deck.getId deck) card)
         |> Html.map LoggedIn
 
 
 sideboardCard : Int -> Card -> Deck -> Html Message
 sideboardCard count card deck =
-    deckListCard count card (AddCardToSideboard (Deck.getId deck) card) (RemoveCardFromSideboard (Deck.getId deck) card) (SelectMtgCard card)
+    deckListCard count card (AddCardToSideboard (Deck.getId deck) card) (RemoveCardFromSideboard (Deck.getId deck) card) (SelectMtgCard (Deck.getId deck) card)
         |> Html.map LoggedIn
 
 
@@ -150,9 +151,9 @@ deckListCard count card addCard removeCard selectCard =
 cardSearch : DeckData -> Html Message
 cardSearch { deck, editPage } =
     Html.form
-        [ Html.Events.onSubmit SearchForCardsRequest ]
+        [ Html.Events.onSubmit <| SearchForCardsRequest (Deck.getId deck) ]
         [ Html.input
-            [ Html.Events.onInput SetCardSearchQuery
+            [ Html.Events.onInput <| SetCardSearchQuery (Deck.getId deck)
             , Html.Attributes.value editPage.cardSearchQuery
             ]
             []
@@ -191,7 +192,7 @@ viewCardSearchResults { deck, editPage } =
                 Html.li
                     []
                     [ Html.span
-                        [ Html.Events.onClick (SelectMtgCard card) ]
+                        [ Html.Events.onClick (SelectMtgCard (Deck.getId deck) card) ]
                         [ Html.text (Card.getName card) ]
                     , Html.button [ Html.Events.onClick (AddCardToMainDeck (Deck.getId deck) card) ] [ Html.text "Add Card" ]
                     , Html.button [ Html.Events.onClick (AddCardToSideboard (Deck.getId deck) card) ] [ Html.text "Add to Sideboard" ]
