@@ -5,7 +5,7 @@ module Route
         , fromLocation
         , toUrl
         , goTo
-        , initialRoute
+        , toPublicRoute
         )
 
 import Navigation
@@ -74,9 +74,9 @@ fromLocation location =
             |> Maybe.withDefault (Public <| NotFound path)
 
 
-initialRoute : Navigation.Location -> PublicRoute
-initialRoute location =
-    case fromLocation location of
+toPublicRoute : Route -> PublicRoute
+toPublicRoute route =
+    case route of
         Public publicRoute ->
             publicRoute
 

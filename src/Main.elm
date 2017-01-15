@@ -161,6 +161,13 @@ updateLoading message model =
                      }
                         |> Anonymous
                         |> Return.singleton
+                        |> Return.command
+                            (model.route
+                                |> Route.toPublicRoute
+                                |> Public
+                                |> Route.toUrl
+                                |> Navigation.newUrl
+                            )
                     )
 
 
