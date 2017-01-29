@@ -32,25 +32,15 @@ type Game
     | Active ActiveGame
 
 
-type alias GameId =
-    String
-
-
-type alias GameBasics =
-    { id : GameId
-    , name : String
+type alias ActiveGame =
+    { basics : GameBasics
+    , state : ActiveState
     }
 
 
 type alias SetupGame =
     { basics : GameBasics
     , state : SetupState
-    }
-
-
-type alias ActiveGame =
-    { basics : GameBasics
-    , state : ActiveState
     }
 
 
@@ -64,6 +54,16 @@ type alias SetupPlayer =
     , cardsForGame : List Card
     , remainingCards : List Card
     }
+
+
+type alias GameBasics =
+    { id : GameId
+    , name : String
+    }
+
+
+type alias GameId =
+    String
 
 
 type alias ActiveState =
@@ -269,7 +269,7 @@ loadDeck username gameId deck (Games games) =
 loadDeckHelp : String -> Deck -> SetupGame -> SetupGame
 loadDeckHelp username deck ({ basics, state } as setupGame) =
     setupGame
-        |> updateSetupPlayer username (\setupPlayer -> { setupPlayer | cardsForGame = Deck.getMainDeck deck, remainingCards = Deck.getSideboard deck })
+        |> updateSetupPlayer username (\player -> { player | cardsForGame = Deck.getMainDeck deck, remainingCards = Deck.getSideboard deck })
 
 
 updateSetupPlayer : String -> (SetupPlayer -> SetupPlayer) -> SetupGame -> SetupGame
@@ -278,11 +278,17 @@ updateSetupPlayer username update ({ basics, state } as setupGame) =
     , state =
         { state
             | players =
-                setupPlayerList setupGame
-                    |> List.Extra.updateIf (\setupPlayer -> setupPlayer.username == username) update
+                setupPlayersToList setupGame
+                    |> List.Extra.updateIf (\player -> player.username == username) update
                     |> setupPlayersFromList
         }
     }
+
+
+setupPlayersToList : SetupGame -> List SetupPlayer
+setupPlayersToList { state } =
+    [ Tuple.first state.players, Tuple.second state.players ]
+        |> List.filterMap identity
 
 
 gameDecoder : Json.Decode.Decoder Game
