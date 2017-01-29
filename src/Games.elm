@@ -45,8 +45,14 @@ type alias SetupGame =
 
 
 type alias SetupState =
-    { players : ( Maybe SetupPlayer, Maybe SetupPlayer )
+    { players : SetupPlayers
     }
+
+
+type SetupPlayers
+    = Zero
+    | One SetupPlayer
+    | Two SetupPlayer SetupPlayer
 
 
 type alias SetupPlayer =
@@ -157,41 +163,48 @@ viewSetupGame user ({ basics, state } as setupGame) joinGame =
     tr
         []
         [ td [] [ text basics.name ]
-        , td [] [ text <| (setupPlayerList setupGame |> List.length |> toString) ++ "/" ++ (setupPlayerList setupGame |> List.length |> toString) ]
+        , td [] [ text <| (setupPlayersToList setupGame |> List.length |> toString) ++ "/" ++ (setupPlayersToList setupGame |> List.length |> toString) ]
         , td
             []
             [ button
                 [ Html.Events.onClick (joinGame (User.getUsername user) basics.id)
-                , Html.Attributes.disabled (Tuple.first state.players /= Nothing && Tuple.second state.players /= Nothing)
+                , Html.Attributes.disabled (isGameFull setupGame)
                 ]
                 [ Html.text "Join Game" ]
             ]
         ]
 
 
-setupPlayersFromList : List SetupPlayer -> ( Maybe SetupPlayer, Maybe SetupPlayer )
+isGameFull : SetupGame -> Bool
+isGameFull { state } =
+    case state.players of
+        Two _ _ ->
+            True
+
+        One _ ->
+            False
+
+        Zero ->
+            False
+
+
+setupPlayersFromList : List SetupPlayer -> SetupPlayers
 setupPlayersFromList playerList =
     case playerList of
         first :: second :: rest ->
-            ( Just first, Just second )
+            Two first second
 
         first :: [] ->
-            ( Just first, Nothing )
+            One first
 
         [] ->
-            ( Nothing, Nothing )
-
-
-setupPlayerList : SetupGame -> List SetupPlayer
-setupPlayerList { state } =
-    [ Tuple.first state.players, Tuple.second state.players ]
-        |> List.filterMap identity
+            Zero
 
 
 findSetupPlayer : String -> SetupGame -> Maybe SetupPlayer
 findSetupPlayer username setupGame =
     setupGame
-        |> setupPlayerList
+        |> setupPlayersToList
         |> List.Extra.find (\setupPlayer -> setupPlayer.username == username)
 
 
@@ -238,13 +251,13 @@ joinGameHelp setupPlayer ({ basics, state } as setupGame) =
             { state
                 | players =
                     case state.players of
-                        ( Nothing, a ) ->
-                            ( Just setupPlayer, a )
+                        Zero ->
+                            One setupPlayer
 
-                        ( a, Nothing ) ->
-                            ( a, Just setupPlayer )
+                        One player1 ->
+                            Two player1 setupPlayer
 
-                        ( Just player1, Just player2 ) ->
+                        Two player1 player2 ->
                             state.players
             }
     }
@@ -287,8 +300,15 @@ updateSetupPlayer username update ({ basics, state } as setupGame) =
 
 setupPlayersToList : SetupGame -> List SetupPlayer
 setupPlayersToList { state } =
-    [ Tuple.first state.players, Tuple.second state.players ]
-        |> List.filterMap identity
+    case state.players of
+        Zero ->
+            []
+
+        One player ->
+            [ player ]
+
+        Two player1 player2 ->
+            [ player1, player2 ]
 
 
 gameDecoder : Json.Decode.Decoder Game
@@ -317,7 +337,7 @@ gameBasicsDecoder =
 setupStateDecoder : Json.Decode.Decoder SetupState
 setupStateDecoder =
     Json.Decode.map SetupState
-        (Json.Decode.map2 (,)
+        (Json.Decode.map2 (\player1 player2 -> List.filterMap identity [ player1, player2 ] |> setupPlayersFromList)
             (Json.Decode.field "player1" (Json.Decode.nullable setupPlayerDecoder))
             (Json.Decode.field "player2" (Json.Decode.nullable setupPlayerDecoder))
         )
